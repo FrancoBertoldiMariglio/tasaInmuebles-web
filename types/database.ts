@@ -254,6 +254,7 @@ export type Database = {
           lng: number | null
           motivo: Database["public"]["Enums"]["motivo_tasacion"]
           numero: number
+          padron_inmobiliario: string | null
           pdf_compartido_at: string | null
           pdf_generado_at: string | null
           pdf_url: string | null
@@ -297,6 +298,7 @@ export type Database = {
           lng?: number | null
           motivo: Database["public"]["Enums"]["motivo_tasacion"]
           numero?: number
+          padron_inmobiliario?: string | null
           pdf_compartido_at?: string | null
           pdf_generado_at?: string | null
           pdf_url?: string | null
@@ -340,6 +342,7 @@ export type Database = {
           lng?: number | null
           motivo?: Database["public"]["Enums"]["motivo_tasacion"]
           numero?: number
+          padron_inmobiliario?: string | null
           pdf_compartido_at?: string | null
           pdf_generado_at?: string | null
           pdf_url?: string | null
