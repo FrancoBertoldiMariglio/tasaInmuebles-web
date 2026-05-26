@@ -59,6 +59,42 @@ export type Database = {
           },
         ]
       }
+      entidad_miembros: {
+        Row: {
+          created_at: string
+          entidad_id: string
+          roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entidad_id: string
+          roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entidad_id?: string
+          roles?: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entidad_miembros_entidad_id_fkey"
+            columns: ["entidad_id"]
+            isOneToOne: false
+            referencedRelation: "entidades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entidad_miembros_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entidades: {
         Row: {
           created_at: string
@@ -92,7 +128,6 @@ export type Database = {
           apellido: string | null
           created_at: string
           email: string
-          entidad_id: string | null
           id: string
           matricula: string | null
           nombre: string | null
@@ -105,7 +140,6 @@ export type Database = {
           apellido?: string | null
           created_at?: string
           email: string
-          entidad_id?: string | null
           id: string
           matricula?: string | null
           nombre?: string | null
@@ -118,7 +152,6 @@ export type Database = {
           apellido?: string | null
           created_at?: string
           email?: string
-          entidad_id?: string | null
           id?: string
           matricula?: string | null
           nombre?: string | null
@@ -126,15 +159,7 @@ export type Database = {
           telefono?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_entidad_id_fkey"
-            columns: ["entidad_id"]
-            isOneToOne: false
-            referencedRelation: "entidades"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       solicitantes: {
         Row: {
@@ -210,6 +235,7 @@ export type Database = {
           cierre_metodo: string | null
           cierre_motivo: string | null
           cliente_b2c_id: string | null
+          creado_por: string | null
           created_at: string
           descripcion: string | null
           domicilio: string | null
@@ -247,6 +273,7 @@ export type Database = {
           cierre_metodo?: string | null
           cierre_motivo?: string | null
           cliente_b2c_id?: string | null
+          creado_por?: string | null
           created_at?: string
           descripcion?: string | null
           domicilio?: string | null
@@ -284,6 +311,7 @@ export type Database = {
           cierre_metodo?: string | null
           cierre_motivo?: string | null
           cliente_b2c_id?: string | null
+          creado_por?: string | null
           created_at?: string
           descripcion?: string | null
           domicilio?: string | null
@@ -322,6 +350,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasaciones_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasaciones_entidad_id_fkey"
             columns: ["entidad_id"]
             isOneToOne: false
@@ -353,6 +388,13 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["rol_usuario"]
       }
+      user_has_role_in_entidad: {
+        Args: {
+          _entidad: string
+          _role: Database["public"]["Enums"]["rol_entidad_miembro"]
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       estado_conservacion: "muy_bueno" | "bueno" | "regular" | "a_reciclar"
@@ -374,6 +416,7 @@ export type Database = {
         | "seguro"
         | "donacion"
         | "otro"
+      rol_entidad_miembro: "admin" | "tasador" | "solicitante"
       rol_usuario:
         | "tasador"
         | "comite"
@@ -386,6 +429,7 @@ export type Database = {
         | "constructora"
         | "juzgado"
         | "otro"
+        | "unipersonal"
       tipo_inmueble:
         | "casa"
         | "depto"
@@ -541,6 +585,7 @@ export const Constants = {
         "donacion",
         "otro",
       ],
+      rol_entidad_miembro: ["admin", "tasador", "solicitante"],
       rol_usuario: ["tasador", "comite", "admin", "cliente_b2c", "cliente_b2b"],
       tipo_entidad: [
         "inmobiliaria",
@@ -548,6 +593,7 @@ export const Constants = {
         "constructora",
         "juzgado",
         "otro",
+        "unipersonal",
       ],
       tipo_inmueble: ["casa", "depto", "terreno", "galpon", "local", "oficina"],
     },
