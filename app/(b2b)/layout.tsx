@@ -1,8 +1,9 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { listarMembresias, getEntidadActivaId } from '@/lib/entidad-activa';
 import LogoutButton from '@/components/LogoutButton';
 import NavLink from '@/components/NavLink';
+import EntidadSelector from '@/components/EntidadSelector';
 
 const navItems = [
   { href: '/dashboard', label: 'Resumen', icon: '◇' },
@@ -16,6 +17,11 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  const [membresias, entidadActivaId] = await Promise.all([
+    listarMembresias(),
+    getEntidadActivaId(),
+  ]);
+
   return (
     <div className="min-h-screen flex bg-surface-page">
       <aside className="w-64 bg-surface-card border-r border-line-soft px-lg py-xl flex flex-col">
@@ -28,6 +34,15 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
             <div className="text-ds-xs text-ink-muted2 mt-xs">Dashboard B2B</div>
           </div>
         </div>
+
+        {entidadActivaId && (
+          <div className="mb-lg pb-lg border-b border-line-soft">
+            <EntidadSelector
+              membresias={membresias}
+              activaId={entidadActivaId}
+            />
+          </div>
+        )}
 
         <nav className="flex-1 space-y-xs">
           {navItems.map((item) => (
