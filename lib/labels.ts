@@ -6,21 +6,17 @@ export type MotivoTasacion = Database['public']['Enums']['motivo_tasacion'];
 export type EstadoConservacion = Database['public']['Enums']['estado_conservacion'];
 
 export const estadoLabels: Record<EstadoTasacion, string> = {
-  borrador:   'Sin asignar',
-  a_editar:   'A editar',
-  a_tasar:    'A tasar',
+  pendiente:  'Pendiente',
+  en_proceso: 'En proceso',
   en_comite:  'En comité',
-  tasada:     'Tasada',
-  compartida: 'Compartida',
+  completada: 'Completada',
 };
 
 export const estadoStyles: Record<EstadoTasacion, string> = {
-  borrador:   'bg-line-soft text-ink-muted2',
-  a_editar:   'bg-status-warningSoft text-status-warningText',
-  a_tasar:    'bg-status-warningSoft text-status-warningText',
+  pendiente:  'bg-line-soft text-ink-muted2',
+  en_proceso: 'bg-status-warningSoft text-status-warningText',
   en_comite:  'bg-status-infoSoft text-status-info',
-  tasada:     'bg-status-successSoft text-status-success',
-  compartida: 'bg-status-successSoft text-status-success',
+  completada: 'bg-status-successSoft text-status-success',
 };
 
 export const tipoLabels: Record<TipoInmueble, string> = {

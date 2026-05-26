@@ -69,7 +69,7 @@ export async function crearTasacion(
       motivo: motivo as MotivoTasacion,
       domicilio,
       descripcion: notas,
-      estado: 'borrador',
+      estado: 'pendiente',
       es_referencial: false,
     })
     .select('id, numero')
