@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { getMembresiaActiva, setEntidadActiva } from '@/lib/entidad-activa';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import type { Database } from '@/types/database';
@@ -29,22 +30,21 @@ export async function crearTasacion(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Sesión expirada. Volvé a iniciar sesión.' };
 
-  // Profile + entidad del user
-  const { data: profile, error: profileErr } = await supabase
-    .from('profiles')
-    .select('entidad_id, rol')
-    .eq('id', user.id)
-    .single();
-
-  if (profileErr) return { error: 'No se pudo cargar tu perfil.' };
-  if (profile.rol !== 'cliente_b2b' && profile.rol !== 'admin') {
-    return { error: 'Solo clientes B2B o admin pueden crear solicitudes desde el dashboard.' };
+  const membresia = await getMembresiaActiva();
+  if (!membresia) {
+    return { error: 'Tu cuenta no está vinculada a ninguna organización.' };
   }
-  if (!profile.entidad_id && profile.rol !== 'admin') {
-    return { error: 'Tu cuenta no está vinculada a una organización.' };
+  const entidadId = membresia.entidad.id;
+
+  // Solo Admin o Solicitante pueden crear desde el dashboard B2B.
+  // Tasador crea desde mobile en el flujo de campo.
+  const puedeCrear =
+    membresia.roles.includes('admin') ||
+    membresia.roles.includes('solicitante');
+  if (!puedeCrear) {
+    return { error: 'No tenés permisos para solicitar tasaciones en esta entidad.' };
   }
 
-  // Validar input
   const tipo = formData.get('tipo') as string;
   const motivo = formData.get('motivo') as string;
   const domicilio = (formData.get('domicilio') as string)?.trim();
@@ -60,11 +60,11 @@ export async function crearTasacion(
     return { error: 'Ingresá una dirección válida.' };
   }
 
-  // INSERT
   const { data, error } = await supabase
     .from('tasaciones')
     .insert({
-      entidad_id: profile.entidad_id,
+      entidad_id: entidadId,
+      creado_por: user.id,
       tipo: tipo as TipoInmueble,
       motivo: motivo as MotivoTasacion,
       domicilio,
@@ -79,4 +79,13 @@ export async function crearTasacion(
 
   revalidatePath('/dashboard/tasaciones');
   redirect(`/dashboard/tasaciones?creada=${data.numero}`);
+}
+
+/**
+ * Cambia la entidad activa del user (cookie). Llamada desde el selector
+ * en el sidebar B2B. Valida membresía server-side.
+ */
+export async function cambiarEntidadActiva(entidadId: string): Promise<void> {
+  await setEntidadActiva(entidadId);
+  revalidatePath('/dashboard', 'layout');
 }

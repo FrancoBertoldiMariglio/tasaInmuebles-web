@@ -1,10 +1,30 @@
 import { createClient } from '@/lib/supabase/server';
+import { getEntidadActivaId } from '@/lib/entidad-activa';
 
 export default async function MetricasPage() {
   const supabase = await createClient();
+  const entidadId = await getEntidadActivaId();
+
+  if (!entidadId) {
+    return (
+      <div className="max-w-3xl">
+        <div className="bg-surface-card border border-line-soft rounded-xl shadow-card p-xl">
+          <h1 className="text-ds-2xl font-bold text-ink-primary">
+            Sin organización activa
+          </h1>
+          <p className="text-ds-md text-ink-muted2 mt-sm">
+            No hay métricas que mostrar hasta que tu cuenta esté vinculada a
+            una organización.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const { data: tasaciones } = await supabase
     .from('tasaciones')
-    .select('estado, valor_usd, created_at');
+    .select('estado, valor_usd, created_at')
+    .eq('entidad_id', entidadId);
 
   const items = tasaciones ?? [];
   const total = items.length;

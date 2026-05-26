@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getEntidadActivaId } from '@/lib/entidad-activa';
 import {
   estadoLabels,
   estadoStyles,
@@ -26,12 +27,33 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
   const to = from + PAGE_SIZE - 1;
 
   const supabase = await createClient();
+  const entidadId = await getEntidadActivaId();
+
+  if (!entidadId) {
+    return (
+      <div className="max-w-3xl">
+        <div className="bg-surface-card border border-line-soft rounded-xl shadow-card p-xl">
+          <h1 className="text-ds-2xl font-bold text-ink-primary">
+            Sin organización activa
+          </h1>
+          <p className="text-ds-md text-ink-muted2 mt-sm">
+            Tu cuenta no tiene una entidad asociada todavía. Pedile al
+            administrador que te invite a una organización.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const [{ count }, { data, error }] = await Promise.all([
-    supabase.from('tasaciones').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('tasaciones')
+      .select('id', { count: 'exact', head: true })
+      .eq('entidad_id', entidadId),
     supabase
       .from('tasaciones')
       .select('id, numero, created_at, estado, tipo, domicilio, valor_usd, motivo')
+      .eq('entidad_id', entidadId)
       .order('created_at', { ascending: false })
       .range(from, to),
   ]);
