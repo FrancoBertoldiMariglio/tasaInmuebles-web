@@ -235,18 +235,21 @@ export type Database = {
           cierre_metodo: string | null
           cierre_motivo: string | null
           cliente_b2c_id: string | null
+          completada_at: string | null
           creado_por: string | null
           created_at: string
           descripcion: string | null
           domicilio: string | null
           dormitorios: number | null
           entidad_id: string | null
+          enviado_a_comite_at: string | null
           es_referencial: boolean
           estado: Database["public"]["Enums"]["estado_tasacion"]
           estado_conservacion:
             | Database["public"]["Enums"]["estado_conservacion"]
             | null
           id: string
+          inspeccion_ocular_completada_at: string | null
           lat: number | null
           lng: number | null
           motivo: Database["public"]["Enums"]["motivo_tasacion"]
@@ -257,6 +260,7 @@ export type Database = {
           solicitante_id: string | null
           sup_cubierta: number | null
           sup_total: number | null
+          tasador_asignado_at: string | null
           tasador_id: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
           updated_at: string
@@ -264,6 +268,7 @@ export type Database = {
           valor_fitt_servini_ars: number | null
           valor_robotomus_ars: number | null
           valor_usd: number | null
+          visita_programada_at: string | null
         }
         Insert: {
           amenities?: string[] | null
@@ -273,18 +278,21 @@ export type Database = {
           cierre_metodo?: string | null
           cierre_motivo?: string | null
           cliente_b2c_id?: string | null
+          completada_at?: string | null
           creado_por?: string | null
           created_at?: string
           descripcion?: string | null
           domicilio?: string | null
           dormitorios?: number | null
           entidad_id?: string | null
+          enviado_a_comite_at?: string | null
           es_referencial?: boolean
           estado?: Database["public"]["Enums"]["estado_tasacion"]
           estado_conservacion?:
             | Database["public"]["Enums"]["estado_conservacion"]
             | null
           id?: string
+          inspeccion_ocular_completada_at?: string | null
           lat?: number | null
           lng?: number | null
           motivo: Database["public"]["Enums"]["motivo_tasacion"]
@@ -295,6 +303,7 @@ export type Database = {
           solicitante_id?: string | null
           sup_cubierta?: number | null
           sup_total?: number | null
+          tasador_asignado_at?: string | null
           tasador_id?: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
           updated_at?: string
@@ -302,6 +311,7 @@ export type Database = {
           valor_fitt_servini_ars?: number | null
           valor_robotomus_ars?: number | null
           valor_usd?: number | null
+          visita_programada_at?: string | null
         }
         Update: {
           amenities?: string[] | null
@@ -311,18 +321,21 @@ export type Database = {
           cierre_metodo?: string | null
           cierre_motivo?: string | null
           cliente_b2c_id?: string | null
+          completada_at?: string | null
           creado_por?: string | null
           created_at?: string
           descripcion?: string | null
           domicilio?: string | null
           dormitorios?: number | null
           entidad_id?: string | null
+          enviado_a_comite_at?: string | null
           es_referencial?: boolean
           estado?: Database["public"]["Enums"]["estado_tasacion"]
           estado_conservacion?:
             | Database["public"]["Enums"]["estado_conservacion"]
             | null
           id?: string
+          inspeccion_ocular_completada_at?: string | null
           lat?: number | null
           lng?: number | null
           motivo?: Database["public"]["Enums"]["motivo_tasacion"]
@@ -333,6 +346,7 @@ export type Database = {
           solicitante_id?: string | null
           sup_cubierta?: number | null
           sup_total?: number | null
+          tasador_asignado_at?: string | null
           tasador_id?: string | null
           tipo?: Database["public"]["Enums"]["tipo_inmueble"]
           updated_at?: string
@@ -340,6 +354,7 @@ export type Database = {
           valor_fitt_servini_ars?: number | null
           valor_robotomus_ars?: number | null
           valor_usd?: number | null
+          visita_programada_at?: string | null
         }
         Relationships: [
           {
@@ -398,13 +413,7 @@ export type Database = {
     }
     Enums: {
       estado_conservacion: "muy_bueno" | "bueno" | "regular" | "a_reciclar"
-      estado_tasacion:
-        | "borrador"
-        | "a_editar"
-        | "a_tasar"
-        | "en_comite"
-        | "tasada"
-        | "compartida"
+      estado_tasacion: "pendiente" | "en_proceso" | "en_comite" | "completada"
       motivo_tasacion:
         | "venta"
         | "alquiler"
@@ -565,14 +574,7 @@ export const Constants = {
   public: {
     Enums: {
       estado_conservacion: ["muy_bueno", "bueno", "regular", "a_reciclar"],
-      estado_tasacion: [
-        "borrador",
-        "a_editar",
-        "a_tasar",
-        "en_comite",
-        "tasada",
-        "compartida",
-      ],
+      estado_tasacion: ["pendiente", "en_proceso", "en_comite", "completada"],
       motivo_tasacion: [
         "venta",
         "alquiler",
