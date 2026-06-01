@@ -29,16 +29,16 @@ export const tipoLabels: Record<TipoInmueble, string> = {
 };
 
 export const motivoLabels: Record<MotivoTasacion, string> = {
-  venta:    'Venta',
-  alquiler: 'Alquiler',
-  sucesion: 'Sucesión',
-  divorcio: 'Divorcio',
-  judicial: 'Judicial',
-  garantia: 'Garantía',
-  contable: 'Contable',
-  seguro:   'Seguro',
-  donacion: 'Donación',
-  otro:     'Otro',
+  venta:                        'Venta',
+  alquiler:                     'Alquiler',
+  asesoramiento_particulares:   'Asesoramiento de valores para particulares',
+  empresas:                     'Tasación para empresas',
+  expropiaciones:               'Expropiaciones',
+  divisiones_fraccionamientos:  'Divisiones / fraccionamientos',
+  sucesion:                     'Sucesión',
+  judicial:                     'Tasación judicial',
+  extrajudicial:                'Tasación extrajudicial',
+  hipoteca:                     'Hipoteca',
 };
 
 export const estadoConservacionLabels: Record<EstadoConservacion, string> = {

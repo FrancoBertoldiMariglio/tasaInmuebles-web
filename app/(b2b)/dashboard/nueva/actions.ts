@@ -18,8 +18,9 @@ const TIPOS_VALIDOS: TipoInmueble[] = [
   'casa', 'depto', 'terreno', 'galpon', 'local', 'oficina',
 ];
 const MOTIVOS_VALIDOS: MotivoTasacion[] = [
-  'venta', 'alquiler', 'sucesion', 'divorcio', 'judicial',
-  'garantia', 'contable', 'seguro', 'donacion', 'otro',
+  'venta', 'alquiler', 'asesoramiento_particulares', 'empresas',
+  'expropiaciones', 'divisiones_fraccionamientos', 'sucesion',
+  'judicial', 'extrajudicial', 'hipoteca',
 ];
 
 export async function crearTasacion(

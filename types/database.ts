@@ -420,14 +420,14 @@ export type Database = {
       motivo_tasacion:
         | "venta"
         | "alquiler"
+        | "asesoramiento_particulares"
+        | "empresas"
+        | "expropiaciones"
+        | "divisiones_fraccionamientos"
         | "sucesion"
-        | "divorcio"
         | "judicial"
-        | "garantia"
-        | "contable"
-        | "seguro"
-        | "donacion"
-        | "otro"
+        | "extrajudicial"
+        | "hipoteca"
       rol_entidad_miembro: "admin" | "tasador" | "solicitante"
       rol_usuario:
         | "tasador"
@@ -581,14 +581,14 @@ export const Constants = {
       motivo_tasacion: [
         "venta",
         "alquiler",
+        "asesoramiento_particulares",
+        "empresas",
+        "expropiaciones",
+        "divisiones_fraccionamientos",
         "sucesion",
-        "divorcio",
         "judicial",
-        "garantia",
-        "contable",
-        "seguro",
-        "donacion",
-        "otro",
+        "extrajudicial",
+        "hipoteca",
       ],
       rol_entidad_miembro: ["admin", "tasador", "solicitante"],
       rol_usuario: ["tasador", "comite", "admin", "cliente_b2c", "cliente_b2b"],

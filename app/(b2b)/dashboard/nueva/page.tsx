@@ -13,16 +13,16 @@ const TIPOS = [
 ] as const;
 
 const MOTIVOS = [
-  { value: 'venta',     label: 'Venta' },
-  { value: 'alquiler',  label: 'Alquiler' },
-  { value: 'garantia',  label: 'Garantía hipotecaria' },
-  { value: 'sucesion',  label: 'Sucesión' },
-  { value: 'divorcio',  label: 'Divorcio' },
-  { value: 'judicial',  label: 'Judicial' },
-  { value: 'contable',  label: 'Contable' },
-  { value: 'seguro',    label: 'Seguro' },
-  { value: 'donacion',  label: 'Donación' },
-  { value: 'otro',      label: 'Otro' },
+  { value: 'venta',                       label: 'Venta' },
+  { value: 'alquiler',                    label: 'Alquiler' },
+  { value: 'asesoramiento_particulares',  label: 'Asesoramiento de valores para particulares' },
+  { value: 'empresas',                    label: 'Tasación para empresas' },
+  { value: 'expropiaciones',              label: 'Expropiaciones' },
+  { value: 'divisiones_fraccionamientos', label: 'Divisiones / fraccionamientos' },
+  { value: 'sucesion',                    label: 'Sucesión' },
+  { value: 'judicial',                    label: 'Tasación judicial' },
+  { value: 'extrajudicial',               label: 'Tasación extrajudicial' },
+  { value: 'hipoteca',                    label: 'Hipoteca' },
 ] as const;
 
 const initialState: CrearTasacionState = {};
