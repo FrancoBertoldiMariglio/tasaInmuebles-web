@@ -21,7 +21,34 @@ type SearchParams = {
   tipo?: string;
   desde?: string;
   hasta?: string;
+  sort?: string;
+  dir?: string;
 };
+
+// TSK-73: columnas ordenables. Mapea la clave de sort (searchParam) a la
+// columna real de Supabase. Solo se permiten estas claves; cualquier otra
+// cae al orden por defecto.
+const SORT_COLUMNS = {
+  numero: 'numero',
+  fecha: 'created_at',
+  tipo: 'tipo',
+  direccion: 'domicilio',
+  estado: 'estado',
+  valor: 'valor_usd',
+} as const;
+
+type SortKey = keyof typeof SORT_COLUMNS;
+type SortDir = 'asc' | 'desc';
+
+const SORT_KEYS_VALIDOS = new Set(Object.keys(SORT_COLUMNS));
+
+function parseSort(raw: string | undefined): SortKey | undefined {
+  return raw && SORT_KEYS_VALIDOS.has(raw) ? (raw as SortKey) : undefined;
+}
+
+function parseDir(raw: string | undefined): SortDir {
+  return raw === 'asc' ? 'asc' : 'desc';
+}
 
 type PageProps = {
   searchParams: Promise<SearchParams>;
@@ -102,6 +129,8 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
   const tipo = parseTipo(sp.tipo);
   const desde = parseFecha(sp.desde);
   const hasta = parseFecha(sp.hasta);
+  const sort = parseSort(sp.sort);
+  const dir = parseDir(sp.dir);
 
   const filtros: FiltersState = { q, estado, tipo, desde, hasta };
 
@@ -169,9 +198,19 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
     }
   }
 
+  // Orden server-side (TSK-73). Por defecto: más reciente primero. Si hay
+  // sort explícito, ordena por esa columna con `numero` como desempate
+  // estable para que la paginación range() sea determinística.
+  const ascending = dir === 'asc';
+  const orderedDataQuery = sort
+    ? dataQuery
+        .order(SORT_COLUMNS[sort], { ascending })
+        .order('numero', { ascending: false })
+    : dataQuery.order('created_at', { ascending: false });
+
   const [{ count }, { data, error }] = await Promise.all([
     countQuery,
-    dataQuery.order('created_at', { ascending: false }).range(from, to),
+    orderedDataQuery.range(from, to),
   ]);
 
   const items = data ?? [];
@@ -182,15 +221,36 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
 
   const hayFiltros = Boolean(q || estado || tipo || desde || hasta);
 
-  // Conserva los filtros vigentes al paginar.
-  const buildPageHref = (targetPage: number): string => {
+  // Params base con los filtros + orden vigentes. Tanto la paginación como
+  // los headers ordenables parten de acá para conservar todo el contexto.
+  const baseParams = (): URLSearchParams => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (estado) params.set('estado', estado);
     if (tipo) params.set('tipo', tipo);
     if (desde) params.set('desde', desde);
     if (hasta) params.set('hasta', hasta);
+    return params;
+  };
+
+  // Conserva filtros + orden vigentes al paginar.
+  const buildPageHref = (targetPage: number): string => {
+    const params = baseParams();
+    if (sort) {
+      params.set('sort', sort);
+      params.set('dir', dir);
+    }
     params.set('page', String(targetPage));
+    return `/dashboard/tasaciones?${params.toString()}`;
+  };
+
+  // Href de un header ordenable: 1er click DESC, 2do click ASC. Cambiar el
+  // orden conserva los filtros y vuelve a la página 1.
+  const buildSortHref = (key: SortKey): string => {
+    const params = baseParams();
+    const nextDir: SortDir = sort === key && dir === 'desc' ? 'asc' : 'desc';
+    params.set('sort', key);
+    params.set('dir', nextDir);
     return `/dashboard/tasaciones?${params.toString()}`;
   };
 
@@ -236,12 +296,12 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
         <table className="w-full text-ds-md">
           <thead className="bg-surface-pageAlt">
             <tr>
-              <Th>N°</Th>
-              <Th>Fecha</Th>
-              <Th>Tipo</Th>
-              <Th>Dirección</Th>
-              <Th>Estado</Th>
-              <Th align="right">Valor USD</Th>
+              <Th sortKey="numero" activeSort={sort} dir={dir} href={buildSortHref('numero')}>N°</Th>
+              <Th sortKey="fecha" activeSort={sort} dir={dir} href={buildSortHref('fecha')}>Fecha</Th>
+              <Th sortKey="tipo" activeSort={sort} dir={dir} href={buildSortHref('tipo')}>Tipo</Th>
+              <Th sortKey="direccion" activeSort={sort} dir={dir} href={buildSortHref('direccion')}>Dirección</Th>
+              <Th sortKey="estado" activeSort={sort} dir={dir} href={buildSortHref('estado')}>Estado</Th>
+              <Th sortKey="valor" activeSort={sort} dir={dir} href={buildSortHref('valor')} align="right">Valor USD</Th>
             </tr>
           </thead>
           <tbody>
@@ -332,17 +392,39 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
 function Th({
   children,
   align = 'left',
+  sortKey,
+  activeSort,
+  dir,
+  href,
 }: {
   children: React.ReactNode;
   align?: 'left' | 'right';
+  sortKey: SortKey;
+  activeSort: SortKey | undefined;
+  dir: SortDir;
+  href: string;
 }) {
+  const isActive = activeSort === sortKey;
+  // Indicador visual de la columna/dirección activa.
+  const arrow = isActive ? (dir === 'asc' ? '↑' : '↓') : '↕';
   return (
     <th
-      className={`px-lg py-md text-ds-xs font-semibold text-ink-muted2 uppercase tracking-wide ${
+      className={`px-lg py-md text-ds-xs font-semibold uppercase tracking-wide ${
         align === 'right' ? 'text-right' : 'text-left'
-      }`}
+      } ${isActive ? 'text-brand-primary' : 'text-ink-muted2'}`}
     >
-      {children}
+      <Link
+        href={href}
+        aria-sort={isActive ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        className={`inline-flex items-center gap-xs hover:text-brand-primary transition-colors duration-fast ${
+          align === 'right' ? 'flex-row-reverse' : ''
+        }`}
+      >
+        <span>{children}</span>
+        <span className={`text-ds-xs ${isActive ? 'opacity-100' : 'opacity-40'}`}>
+          {arrow}
+        </span>
+      </Link>
     </th>
   );
 }
