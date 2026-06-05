@@ -8,7 +8,7 @@ import EntidadSelector from '@/components/EntidadSelector';
 const navItems = [
   { href: '/dashboard', label: 'Resumen', icon: '◇' },
   { href: '/dashboard/tasaciones', label: 'Tasaciones', icon: '▤' },
-  { href: '/dashboard/nueva', label: 'Solicitar', icon: '＋' },
+  { href: '/dashboard/nueva', label: 'Solicitar', icon: '＋', solicitarRoles: true },
   { href: '/dashboard/metricas', label: 'Métricas', icon: '▦' },
   { href: '/dashboard/miembros', label: 'Miembros', icon: '◍', adminOnly: true },
   { href: '/dashboard/invitar', label: 'Invitar', icon: '✉', adminOnly: true },
@@ -26,10 +26,19 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
 
   const membresiaActiva =
     membresias.find((m) => m.entidad.id === entidadActivaId) ?? membresias[0] ?? null;
-  const esAdminEntidad = membresiaActiva?.roles.includes('admin') ?? false;
-  const visibleNav = navItems.filter(
-    (item) => !('adminOnly' in item && item.adminOnly) || esAdminEntidad,
-  );
+  const roles = membresiaActiva?.roles ?? [];
+  const esAdminEntidad = roles.includes('admin');
+  // TSK-72: 'Solicitar' solo para quien solicita tasaciones. Un miembro con
+  // rol de entidad 'tasador' NO solicita, así que no debe ver el item.
+  // admin (ve todo) y solicitante sí; un tasador puro no.
+  const puedeSolicitar = esAdminEntidad || roles.includes('solicitante');
+  const visibleNav = navItems.filter((item) => {
+    if ('adminOnly' in item && item.adminOnly && !esAdminEntidad) return false;
+    if ('solicitarRoles' in item && item.solicitarRoles && !puedeSolicitar) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen flex bg-surface-page">
