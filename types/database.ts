@@ -413,6 +413,44 @@ export type Database = {
         }
         Returns: boolean
       }
+      listar_miembros_entidad: {
+        Args: {
+          _entidad: string
+        }
+        Returns: {
+          user_id: string
+          email: string
+          nombre: string | null
+          apellido: string | null
+          telefono: string | null
+          matricula: string | null
+          roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          created_at: string
+        }[]
+      }
+      agregar_miembro_por_email: {
+        Args: {
+          _entidad: string
+          _email: string
+          _roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+        }
+        Returns: string
+      }
+      actualizar_roles_miembro: {
+        Args: {
+          _entidad: string
+          _user: string
+          _roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+        }
+        Returns: undefined
+      }
+      quitar_miembro_entidad: {
+        Args: {
+          _entidad: string
+          _user: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       estado_conservacion: "muy_bueno" | "bueno" | "regular" | "a_reciclar"
