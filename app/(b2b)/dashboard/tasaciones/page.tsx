@@ -9,6 +9,7 @@ import {
   type TipoInmueble,
 } from '@/lib/labels';
 import TasacionesFilters, { type FiltersState } from './TasacionesFilters';
+import TasacionesRealtime from './TasacionesRealtime';
 
 const PAGE_SIZE = 25;
 
@@ -152,6 +153,7 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
 
   return (
     <div className="max-w-6xl">
+      <TasacionesRealtime entidadId={entidadId} />
       <div className="mb-3xl flex items-end justify-between">
         <div>
           <div className="text-ds-sm font-medium text-ink-muted uppercase tracking-wide">
