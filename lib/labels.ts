@@ -4,6 +4,21 @@ export type EstadoTasacion = Database['public']['Enums']['estado_tasacion'];
 export type TipoInmueble = Database['public']['Enums']['tipo_inmueble'];
 export type MotivoTasacion = Database['public']['Enums']['motivo_tasacion'];
 export type EstadoConservacion = Database['public']['Enums']['estado_conservacion'];
+export type RolMiembro = Database['public']['Enums']['rol_entidad_miembro'];
+
+export const rolMiembroLabels: Record<RolMiembro, string> = {
+  admin:       'Administrador',
+  tasador:     'Tasador',
+  solicitante: 'Solicitante',
+};
+
+export const rolMiembroStyles: Record<RolMiembro, string> = {
+  admin:       'bg-status-infoSoft text-status-info',
+  tasador:     'bg-status-successSoft text-status-success',
+  solicitante: 'bg-line-soft text-ink-muted2',
+};
+
+export const ROLES_MIEMBRO: readonly RolMiembro[] = ['admin', 'tasador', 'solicitante'];
 
 export const estadoLabels: Record<EstadoTasacion, string> = {
   pendiente:  'Pendiente',
