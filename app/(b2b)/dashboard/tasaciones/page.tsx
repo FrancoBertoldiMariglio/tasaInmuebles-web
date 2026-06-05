@@ -285,13 +285,27 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
     return `/dashboard/tasaciones?${params.toString()}`;
   };
 
-  // Href de un header ordenable: 1er click DESC, 2do click ASC. Cambiar el
-  // orden conserva los filtros y vuelve a la página 1.
+  // Href de un header ordenable (TSK-101): ciclo de 3 estados.
+  //   1er click  → DESC
+  //   2do click  → ASC
+  //   3er click  → SIN ORDEN (se limpian sort/dir → vuelve al default
+  //                created_at desc)
+  // Cambiar el orden conserva los filtros vigentes. No se setea `page`, así que
+  // la paginación arranca de la página 1 al reordenar.
   const buildSortHref = (key: SortKey): string => {
     const params = baseParams();
-    const nextDir: SortDir = sort === key && dir === 'desc' ? 'asc' : 'desc';
-    params.set('sort', key);
-    params.set('dir', nextDir);
+    if (sort === key) {
+      if (dir === 'desc') {
+        // 2do click sobre la columna activa: pasar a ASC.
+        params.set('sort', key);
+        params.set('dir', 'asc');
+      }
+      // 3er click (estaba ASC): no se setea sort/dir → orden por defecto.
+    } else {
+      // 1er click sobre una columna nueva: DESC.
+      params.set('sort', key);
+      params.set('dir', 'desc');
+    }
     return `/dashboard/tasaciones?${params.toString()}`;
   };
 
