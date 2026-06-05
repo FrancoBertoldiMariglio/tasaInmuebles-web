@@ -84,11 +84,21 @@ const INT4_MAX = 2147483647;
 // TSK-71 (mismo bug que TSK-63 en mobile): si el término es PURAMENTE
 // NUMÉRICO se matchea SOLO por número de tasación — nunca por domicilio —
 // para evitar matches "fantasma" (buscar "23" traía "Av. San Martín 1234" o
-// "25 de Mayo 2300" por el domicilio). El número se matchea contra ambas
-// representaciones: el valor crudo (numero=23) y el formateado visible que
-// muestra la UI con padStart(4,'0') ("#0023"). Como `numero` es int4, ambas
-// colapsan al mismo entero tras quitar ceros a la izquierda, así que un único
-// `numero.eq.<n>` cubre tanto "23" como "0023".
+// "25 de Mayo 2300" por el domicilio). El criterio numérico del web es de
+// IGUALDAD EXACTA sobre el entero: buscar "23" (o "0023") devuelve únicamente
+// la tasación #23. Como `numero` es int4, "23" y "0023" colapsan al mismo
+// entero tras quitar ceros a la izquierda, así que un único `numero.eq.<n>`
+// cubre ambas formas.
+//
+// DIVERGENCIA CONSCIENTE CON MOBILE (TSK-63 vs TSK-71): el mobile
+// (lib/estado-tasacion.ts:buscarTasaciones) hace búsqueda por SUBSTRING sobre
+// el número crudo y el padded — ahí "23" matchea #23, #230, #1234 y #0023.
+// Web NO replica ese substring: el número de tasación es un ID y la búsqueda
+// exacta es el comportamiento esperado para un ID. La paridad real por
+// substring no es expresable en un `.or()` de PostgREST sobre una columna int4
+// sin una columna texto/generada en la BD (cambio de schema fuera de alcance
+// de este worktree web-only). Pendiente: alinear mobile a igualdad exacta o,
+// si se prioriza el substring, agregar `numero_texto` generado + migration.
 //
 // Si el término es texto, se matchea por domicilio (ilike) como antes.
 //
@@ -102,7 +112,8 @@ function buildSearchOr(term: string): string | null {
   // Puramente numérico: solo dígitos (con posibles ceros a la izquierda).
   const esNumerica = /^\d+$/.test(safe);
   if (esNumerica) {
-    // Quitar ceros a la izquierda para colapsar "0023" y "23" al mismo entero.
+    // Igualdad exacta: quitar ceros a la izquierda para colapsar "0023" y "23"
+    // al mismo entero (no es substring — ver nota de divergencia con mobile).
     const sinCeros = safe.replace(/^0+/, '') || '0';
     const asNum = Number(sinCeros);
     // Validar overflow int4 / notación científica: el término ya pasó el
