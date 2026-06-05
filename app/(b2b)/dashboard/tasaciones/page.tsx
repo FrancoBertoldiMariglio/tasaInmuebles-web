@@ -48,16 +48,47 @@ function parseFecha(raw: string | undefined): string | undefined {
   return raw && FECHA_RE.test(raw) ? raw : undefined;
 }
 
-// Construye un filtro OR para Supabase: busca por domicilio (ilike) o,
-// si el término es numérico, por número de tasación exacto.
-function buildSearchOr(term: string): string {
+// Límite de int4 en Postgres (columna `numero`). Términos por encima de esto
+// desbordarían el cast y harían fallar el filtro `numero.eq`.
+const INT4_MAX = 2147483647;
+
+// Construye un filtro OR para Supabase a partir del término de búsqueda.
+//
+// TSK-71 (mismo bug que TSK-63 en mobile): si el término es PURAMENTE
+// NUMÉRICO se matchea SOLO por número de tasación — nunca por domicilio —
+// para evitar matches "fantasma" (buscar "23" traía "Av. San Martín 1234" o
+// "25 de Mayo 2300" por el domicilio). El número se matchea contra ambas
+// representaciones: el valor crudo (numero=23) y el formateado visible que
+// muestra la UI con padStart(4,'0') ("#0023"). Como `numero` es int4, ambas
+// colapsan al mismo entero tras quitar ceros a la izquierda, así que un único
+// `numero.eq.<n>` cubre tanto "23" como "0023".
+//
+// Si el término es texto, se matchea por domicilio (ilike) como antes.
+//
+// Devuelve `null` cuando el término es numérico pero inválido (desborda int4,
+// notación científica, etc.): no hay cláusula posible, el caller no debe
+// aplicar ningún `.or()` y el listado sale vacío en vez de explotar.
+function buildSearchOr(term: string): string | null {
   const safe = term.replace(/[%,()]/g, ' ').trim();
-  const clauses = [`domicilio.ilike.%${safe}%`];
-  const asNum = Number(safe);
-  if (Number.isInteger(asNum) && asNum > 0) {
-    clauses.push(`numero.eq.${asNum}`);
+  if (!safe) return null;
+
+  // Puramente numérico: solo dígitos (con posibles ceros a la izquierda).
+  const esNumerica = /^\d+$/.test(safe);
+  if (esNumerica) {
+    // Quitar ceros a la izquierda para colapsar "0023" y "23" al mismo entero.
+    const sinCeros = safe.replace(/^0+/, '') || '0';
+    const asNum = Number(sinCeros);
+    // Validar overflow int4 / notación científica: el término ya pasó el
+    // regex de solo-dígitos, pero igual chequeamos rango para no romper el
+    // cast en Postgres.
+    if (!Number.isSafeInteger(asNum) || asNum <= 0 || asNum > INT4_MAX) {
+      return null;
+    }
+    return `numero.eq.${asNum}`;
   }
-  return clauses.join(',');
+
+  // Término de texto: matchear domicilio.
+  return `domicilio.ilike.%${safe}%`;
 }
 
 export default async function TasacionesPage({ searchParams }: PageProps) {
@@ -125,8 +156,17 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
   }
   if (q) {
     const orClause = buildSearchOr(q);
-    countQuery = countQuery.or(orClause);
-    dataQuery = dataQuery.or(orClause);
+    if (orClause) {
+      countQuery = countQuery.or(orClause);
+      dataQuery = dataQuery.or(orClause);
+    } else {
+      // Término numérico inválido (overflow int4 / notación científica):
+      // no hay match posible. Forzamos resultado vacío sin pegarle a la BD
+      // con un filtro que rompería el cast.
+      const sinResultados = `numero.eq.0`;
+      countQuery = countQuery.or(sinResultados);
+      dataQuery = dataQuery.or(sinResultados);
+    }
   }
 
   const [{ count }, { data, error }] = await Promise.all([
