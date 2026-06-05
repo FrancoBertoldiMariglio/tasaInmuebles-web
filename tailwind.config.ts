@@ -6,7 +6,19 @@ import type { Config } from 'tailwindcss';
  * Capa semántica (brand/surface/text/border/status) — las screens NUNCA usan palette crudo.
  */
 export default {
-  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  // TSK-79: incluir `lib/` en el content scan. Los chips de estado se definen
+  // como strings literales de clases en `lib/labels.ts` (estadoStyles). Tailwind
+  // v3 (JIT/purge) solo genera utilidades que encuentra literalmente en los
+  // paths de `content`. Sin `lib/`, clases usadas EXCLUSIVAMENTE ahí —como
+  // `bg-status-warningSoft`/`text-status-warningText` (En proceso)— se purgaban
+  // y el chip renderizaba sin fondo (texto plano), mientras los que también
+  // aparecían en `app/` (line-soft, status-infoSoft) sí sobrevivían. El token de
+  // color ya existía en el theme; lo que faltaba era que la clase entrara al scan.
+  content: [
+    './app/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './lib/**/*.{ts,tsx}',
+  ],
   theme: {
     extend: {
       colors: {
