@@ -144,18 +144,18 @@ export default async function TasacionDetallePage({ params }: PageProps) {
     tasacion.tasador_id == null;
 
   const tasadoresEntidad: TasadorOption[] = puedeAsignar
-    ? await supabase
-        .rpc('listar_miembros_entidad', { _entidad: entidadId })
-        .then(({ data }) =>
-          (data ?? [])
-            .filter((m) => (m.roles as string[]).includes('tasador'))
-            .map((m) => ({
-              userId: m.user_id,
-              nombre:
-                [m.nombre, m.apellido].filter(Boolean).join(' ').trim() || m.email,
-            })),
-        )
-        .catch(() => [])
+    ? await (async () => {
+        const { data } = await supabase.rpc('listar_miembros_entidad', {
+          _entidad: entidadId as string,
+        });
+        return (data ?? [])
+          .filter((m) => (m.roles as string[]).includes('tasador'))
+          .map((m) => ({
+            userId: m.user_id,
+            nombre:
+              [m.nombre, m.apellido].filter(Boolean).join(' ').trim() || m.email,
+          }));
+      })()
     : [];
 
   const estado = tasacion.estado as EstadoTasacion;
