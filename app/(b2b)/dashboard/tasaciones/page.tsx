@@ -301,7 +301,7 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
       <div className="mb-3xl flex items-end justify-between">
         <div>
           <div className="text-ds-sm font-medium text-ink-muted uppercase tracking-wide">
-            RF-021
+            Listado
           </div>
           <h1 className="text-ds-4xl font-bold text-ink-primary tracking-tight mt-xs">
             Tasaciones

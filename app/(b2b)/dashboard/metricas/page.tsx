@@ -41,7 +41,7 @@ export default async function MetricasPage() {
     <div className="max-w-6xl">
       <div className="mb-3xl">
         <div className="text-ds-sm font-medium text-ink-muted uppercase tracking-wide">
-          RF-023
+          Panel B2B
         </div>
         <h1 className="text-ds-4xl font-bold text-ink-primary tracking-tight mt-xs">
           Métricas
