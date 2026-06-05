@@ -254,6 +254,7 @@ export type Database = {
           lng: number | null
           motivo: Database["public"]["Enums"]["motivo_tasacion"]
           numero: number
+          numero_busqueda: string | null
           padron_inmobiliario: string | null
           pdf_compartido_at: string | null
           pdf_generado_at: string | null
