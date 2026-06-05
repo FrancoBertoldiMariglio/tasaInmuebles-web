@@ -1,5 +1,6 @@
+import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getUserCached } from '@/lib/supabase/server';
 import type { Database } from '@/types/database';
 
 const COOKIE_NAME = 'entidad_activa';
@@ -16,26 +17,33 @@ export type Membresia = {
 /**
  * Lista las entidades a las que pertenece el user autenticado, con sus roles.
  * Devuelve [] si no hay sesión o si no tiene membresías (caso edge).
+ *
+ * TSK-86: envuelta en React `cache()` para deduplicar por request. El layout
+ * B2B y varias pages la invocan (directa o indirectamente vía
+ * getEntidadActivaId/getMembresiaActiva); sin cache cada llamada disparaba un
+ * getUser() + un SELECT a entidad_miembros (2 round-trips a Supabase c/u).
  */
-export async function listarMembresias(): Promise<Membresia[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+export const listarMembresias = cache(
+  async (): Promise<Membresia[]> => {
+    const user = await getUserCached();
+    if (!user) return [];
 
-  const { data, error } = await supabase
-    .from('entidad_miembros')
-    .select('roles, entidad:entidades(id, nombre, tipo)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true });
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('entidad_miembros')
+      .select('roles, entidad:entidades(id, nombre, tipo)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
 
-  if (error || !data) return [];
+    if (error || !data) return [];
 
-  return data
-    .filter((m): m is typeof m & { entidad: NonNullable<typeof m.entidad> } =>
-      m.entidad != null,
-    )
-    .map((m) => ({ entidad: m.entidad, roles: m.roles as Rol[] }));
-}
+    return data
+      .filter((m): m is typeof m & { entidad: NonNullable<typeof m.entidad> } =>
+        m.entidad != null,
+      )
+      .map((m) => ({ entidad: m.entidad, roles: m.roles as Rol[] }));
+  },
+);
 
 /**
  * Devuelve el id de entidad activa para el user actual.
@@ -44,18 +52,20 @@ export async function listarMembresias(): Promise<Membresia[]> {
  *   2. Primera entidad por orden de membresía (la más antigua).
  *   3. null si no tiene ninguna.
  */
-export async function getEntidadActivaId(): Promise<string | null> {
-  const membresias = await listarMembresias();
-  if (membresias.length === 0) return null;
+export const getEntidadActivaId = cache(
+  async (): Promise<string | null> => {
+    const membresias = await listarMembresias();
+    if (membresias.length === 0) return null;
 
-  const cookieStore = await cookies();
-  const cookieValue = cookieStore.get(COOKIE_NAME)?.value;
-  if (cookieValue && membresias.some((m) => m.entidad.id === cookieValue)) {
-    return cookieValue;
-  }
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get(COOKIE_NAME)?.value;
+    if (cookieValue && membresias.some((m) => m.entidad.id === cookieValue)) {
+      return cookieValue;
+    }
 
-  return membresias[0].entidad.id;
-}
+    return membresias[0].entidad.id;
+  },
+);
 
 /**
  * Devuelve la membresía activa completa (entidad + roles) para el user actual.

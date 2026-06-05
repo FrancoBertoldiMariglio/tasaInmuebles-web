@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { getUserCached } from '@/lib/supabase/server';
 import { listarMembresias, getEntidadActivaId } from '@/lib/entidad-activa';
 import LogoutButton from '@/components/LogoutButton';
 import NavLink from '@/components/NavLink';
@@ -15,14 +15,15 @@ const navItems = [
 ] as const;
 
 export default async function B2BLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const [membresias, entidadActivaId] = await Promise.all([
+  // TSK-86: getUserCached() comparte la lectura del user con listarMembresias /
+  // getEntidadActivaId (mismo cache de request), evitando el segundo getUser()
+  // que antes hacía el layout además del que ya corre el middleware.
+  const [user, membresias, entidadActivaId] = await Promise.all([
+    getUserCached(),
     listarMembresias(),
     getEntidadActivaId(),
   ]);
+  if (!user) redirect('/login');
 
   const membresiaActiva =
     membresias.find((m) => m.entidad.id === entidadActivaId) ?? membresias[0] ?? null;
