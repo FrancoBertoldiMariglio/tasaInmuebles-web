@@ -60,14 +60,25 @@ export default function TasacionesFilters({ initial }: Props) {
       <div className="flex flex-wrap items-end gap-md">
         <form onSubmit={handleSubmit} className="flex-1 min-w-[240px]">
           <Label>Buscar</Label>
-          <input
-            type="text"
-            name="q"
-            defaultValue={initial.q ?? ''}
-            placeholder="Dirección o N° de tasación"
-            disabled={pending}
-            className="mt-xs w-full px-sm py-xs border border-line rounded-md text-ds-sm text-ink-primary bg-surface-card focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-shadow duration-fast disabled:opacity-40"
-          />
+          {/* TSK-76: botón 'Filtrar' explícito + feedback de loading. El
+              filtrado por URL sigue funcionando (Enter o click en Filtrar). */}
+          <div className="mt-xs flex gap-sm">
+            <input
+              type="text"
+              name="q"
+              defaultValue={initial.q ?? ''}
+              placeholder="Dirección o N° de tasación"
+              disabled={pending}
+              className="flex-1 px-sm py-xs border border-line rounded-md text-ds-sm text-ink-primary bg-surface-card focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-shadow duration-fast disabled:opacity-40"
+            />
+            <button
+              type="submit"
+              disabled={pending}
+              className="px-md py-xs rounded-md text-ds-sm font-semibold text-ink-onDark bg-brand-primary hover:bg-brand-primaryDeep transition-colors duration-fast disabled:opacity-40 whitespace-nowrap"
+            >
+              {pending ? 'Filtrando…' : 'Filtrar'}
+            </button>
+          </div>
         </form>
 
         <label className="block min-w-[160px]">
