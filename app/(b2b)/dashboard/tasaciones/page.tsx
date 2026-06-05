@@ -8,23 +8,69 @@ import {
   type EstadoTasacion,
   type TipoInmueble,
 } from '@/lib/labels';
+import TasacionesFilters, { type FiltersState } from './TasacionesFilters';
 
 const PAGE_SIZE = 25;
 
-type PageProps = {
-  searchParams: Promise<{ page?: string }>;
+type SearchParams = {
+  page?: string;
+  q?: string;
+  estado?: string;
+  tipo?: string;
+  desde?: string;
+  hasta?: string;
 };
+
+type PageProps = {
+  searchParams: Promise<SearchParams>;
+};
+
+const ESTADOS_VALIDOS = new Set(Object.keys(estadoLabels));
+const TIPOS_VALIDOS = new Set(Object.keys(tipoLabels));
+const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function parsePage(raw: string | undefined): number {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
 }
 
+function parseEstado(raw: string | undefined): EstadoTasacion | undefined {
+  return raw && ESTADOS_VALIDOS.has(raw) ? (raw as EstadoTasacion) : undefined;
+}
+
+function parseTipo(raw: string | undefined): TipoInmueble | undefined {
+  return raw && TIPOS_VALIDOS.has(raw) ? (raw as TipoInmueble) : undefined;
+}
+
+function parseFecha(raw: string | undefined): string | undefined {
+  return raw && FECHA_RE.test(raw) ? raw : undefined;
+}
+
+// Construye un filtro OR para Supabase: busca por domicilio (ilike) o,
+// si el término es numérico, por número de tasación exacto.
+function buildSearchOr(term: string): string {
+  const safe = term.replace(/[%,()]/g, ' ').trim();
+  const clauses = [`domicilio.ilike.%${safe}%`];
+  const asNum = Number(safe);
+  if (Number.isInteger(asNum) && asNum > 0) {
+    clauses.push(`numero.eq.${asNum}`);
+  }
+  return clauses.join(',');
+}
+
 export default async function TasacionesPage({ searchParams }: PageProps) {
-  const { page: pageParam } = await searchParams;
-  const page = parsePage(pageParam);
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
+
+  const q = sp.q?.trim() || undefined;
+  const estado = parseEstado(sp.estado);
+  const tipo = parseTipo(sp.tipo);
+  const desde = parseFecha(sp.desde);
+  const hasta = parseFecha(sp.hasta);
+
+  const filtros: FiltersState = { q, estado, tipo, desde, hasta };
 
   const supabase = await createClient();
   const entidadId = await getEntidadActivaId();
@@ -45,17 +91,43 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
     );
   }
 
+  // Construye un query con los filtros vigentes (por searchParams) aplicados.
+  // El mismo set de filtros se usa para el count y para la página de datos,
+  // así la paginación server-side refleja el universo filtrado.
+  let countQuery = supabase
+    .from('tasaciones')
+    .select('id', { count: 'exact', head: true })
+    .eq('entidad_id', entidadId);
+  let dataQuery = supabase
+    .from('tasaciones')
+    .select('id, numero, created_at, estado, tipo, domicilio, valor_usd, motivo')
+    .eq('entidad_id', entidadId);
+
+  if (estado) {
+    countQuery = countQuery.eq('estado', estado);
+    dataQuery = dataQuery.eq('estado', estado);
+  }
+  if (tipo) {
+    countQuery = countQuery.eq('tipo', tipo);
+    dataQuery = dataQuery.eq('tipo', tipo);
+  }
+  if (desde) {
+    countQuery = countQuery.gte('created_at', `${desde}T00:00:00`);
+    dataQuery = dataQuery.gte('created_at', `${desde}T00:00:00`);
+  }
+  if (hasta) {
+    countQuery = countQuery.lte('created_at', `${hasta}T23:59:59.999`);
+    dataQuery = dataQuery.lte('created_at', `${hasta}T23:59:59.999`);
+  }
+  if (q) {
+    const orClause = buildSearchOr(q);
+    countQuery = countQuery.or(orClause);
+    dataQuery = dataQuery.or(orClause);
+  }
+
   const [{ count }, { data, error }] = await Promise.all([
-    supabase
-      .from('tasaciones')
-      .select('id', { count: 'exact', head: true })
-      .eq('entidad_id', entidadId),
-    supabase
-      .from('tasaciones')
-      .select('id, numero, created_at, estado, tipo, domicilio, valor_usd, motivo')
-      .eq('entidad_id', entidadId)
-      .order('created_at', { ascending: false })
-      .range(from, to),
+    countQuery,
+    dataQuery.order('created_at', { ascending: false }).range(from, to),
   ]);
 
   const items = data ?? [];
@@ -63,6 +135,20 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
+
+  const hayFiltros = Boolean(q || estado || tipo || desde || hasta);
+
+  // Conserva los filtros vigentes al paginar.
+  const buildPageHref = (targetPage: number): string => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (estado) params.set('estado', estado);
+    if (tipo) params.set('tipo', tipo);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    params.set('page', String(targetPage));
+    return `/dashboard/tasaciones?${params.toString()}`;
+  };
 
   return (
     <div className="max-w-6xl">
@@ -91,6 +177,8 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
         </div>
       </div>
 
+      <TasacionesFilters initial={filtros} />
+
       {error && (
         <div className="mb-lg px-lg py-md rounded-md bg-status-dangerSoft border border-status-danger/30">
           <p className="text-ds-sm text-status-danger font-medium">
@@ -116,10 +204,14 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
               <tr>
                 <td colSpan={6} className="px-lg py-4xl text-center">
                   <div className="text-ds-md text-ink-muted2">
-                    No hay tasaciones todavía.
+                    {hayFiltros
+                      ? 'No hay tasaciones que coincidan con los filtros.'
+                      : 'No hay tasaciones todavía.'}
                   </div>
                   <div className="text-ds-sm text-ink-muted mt-xs">
-                    Las tasaciones que tu equipo solicite aparecerán acá.
+                    {hayFiltros
+                      ? 'Probá ajustar la búsqueda o limpiar los filtros.'
+                      : 'Las tasaciones que tu equipo solicite aparecerán acá.'}
                   </div>
                 </td>
               </tr>
@@ -177,11 +269,11 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
             </div>
             <div className="flex gap-sm">
               <PageLink
-                href={hasPrev ? `/dashboard/tasaciones?page=${page - 1}` : null}
+                href={hasPrev ? buildPageHref(page - 1) : null}
                 label="← Anterior"
               />
               <PageLink
-                href={hasNext ? `/dashboard/tasaciones?page=${page + 1}` : null}
+                href={hasNext ? buildPageHref(page + 1) : null}
                 label="Siguiente →"
               />
             </div>
