@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getEntidadActivaId } from '@/lib/entidad-activa';
 import { fetchFotosTasacion } from '@/lib/queries/fotos';
 import {
   estadoLabels,
@@ -53,17 +54,21 @@ function formatUsdMuestra(value: number | null): string {
 export default async function TasacionDetallePage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
+  const entidadId = await getEntidadActivaId();
 
-  const { data: tasacion, error } = await supabase
-    .from('tasaciones')
-    .select(`
-      *,
-      solicitante:solicitantes(*),
-      tasador:profiles!tasaciones_tasador_id_fkey(nombre, apellido, email, matricula),
-      entidad:entidades(nombre, tipo)
-    `)
-    .eq('id', id)
-    .single();
+  const { data: tasacion, error } = entidadId
+    ? await supabase
+        .from('tasaciones')
+        .select(`
+          *,
+          solicitante:solicitantes(*),
+          tasador:profiles!tasaciones_tasador_id_fkey(nombre, apellido, email, matricula),
+          entidad:entidades(nombre, tipo)
+        `)
+        .eq('id', id)
+        .eq('entidad_id', entidadId)
+        .single()
+    : { data: null, error: null };
 
   if (error || !tasacion) {
     return (
