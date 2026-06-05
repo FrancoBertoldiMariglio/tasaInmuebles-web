@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useActionState } from 'react';
+import { useEffect, useRef, useState, useActionState } from 'react';
 import {
   actualizarRoles,
   quitarMiembro,
@@ -34,6 +34,20 @@ export default function MiembroRow({ miembro }: { miembro: MiembroView }) {
     quitarMiembro,
     initialState,
   );
+
+  // TSK-102: al guardar con éxito, `actualizarRoles` devuelve `{ ok }`.
+  // Colapsamos el form de edición cuando ese estado CAMBIA a uno con `ok`.
+  // Comparamos contra la referencia previa de `editState`: como `useActionState`
+  // conserva el estado entre aperturas, un `ok` heredado de un guardado anterior
+  // NO debe colapsar el form al reabrirlo (eso pasaría si solo mirásemos la
+  // verdad de `editState.ok`). Solo reaccionamos a una transición real de estado.
+  const prevEditState = useRef(editState);
+  useEffect(() => {
+    if (editState !== prevEditState.current) {
+      if (editState.ok) setEditando(false);
+      prevEditState.current = editState;
+    }
+  }, [editState]);
 
   const nombre =
     [miembro.nombre, miembro.apellido].filter(Boolean).join(' ') || '—';
