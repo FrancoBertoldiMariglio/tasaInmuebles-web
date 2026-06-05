@@ -9,6 +9,8 @@ import {
   motivoLabels,
   estadoConservacionLabels,
   TIPOS_SIN_AMBIENTES,
+  tasadorNombreDisplay,
+  esEsperandoAsignacion,
   type EstadoTasacion,
   type TipoInmueble,
   type MotivoTasacion,
@@ -62,7 +64,6 @@ export default async function TasacionDetallePage({ params }: PageProps) {
         .select(`
           *,
           solicitante:solicitantes(*),
-          tasador:profiles!tasaciones_tasador_id_fkey(nombre, apellido, email, matricula),
           entidad:entidades(nombre, tipo)
         `)
         .eq('id', id)
@@ -107,6 +108,28 @@ export default async function TasacionDetallePage({ params }: PageProps) {
 
   const propuestas = propuestasRaw ?? [];
 
+  // TSK-85: el tasador asignado no se puede leer con join directo a profiles
+  // (la RLS `profile_select` solo deja ver el propio profile). Lo resolvemos con
+  // la RPC SECURITY DEFINER `tasadores_de_entidad`, que valida membresía en la
+  // entidad y devuelve el display por tasación. Si la tasación no aparece
+  // (tasador_id NULL, DS-22) → sin asignar.
+  const tasador = entidadId
+    ? await supabase
+        .rpc('tasadores_de_entidad', { _entidad: entidadId })
+        .then(({ data }) => {
+          const row = (data ?? []).find((r) => r.tasacion_id === id);
+          return row
+            ? {
+                user_id: row.user_id,
+                nombre: row.nombre,
+                apellido: row.apellido,
+                email: row.email,
+                matricula: row.matricula,
+              }
+            : null;
+        })
+    : null;
+
   const estado = tasacion.estado as EstadoTasacion;
   const tipo = tasacion.tipo as TipoInmueble;
   const motivo = tasacion.motivo as MotivoTasacion;
@@ -114,9 +137,9 @@ export default async function TasacionDetallePage({ params }: PageProps) {
   const numero = String(tasacion.numero).padStart(4, '0');
   const muestraAmbientes = !TIPOS_SIN_AMBIENTES.has(tipo);
 
-  const tasadorNombre = tasacion.tasador
-    ? [tasacion.tasador.nombre, tasacion.tasador.apellido].filter(Boolean).join(' ').trim()
-    : '';
+  const tasadorNombre = tasadorNombreDisplay(tasador);
+  const tasadorMatricula = tasador?.matricula ?? null;
+  const esperandoAsignacion = esEsperandoAsignacion(estado, tasador);
   const solicitanteNombre = tasacion.solicitante
     ? [tasacion.solicitante.nombre, tasacion.solicitante.apellido].filter(Boolean).join(' ').trim()
     : '';
@@ -193,11 +216,29 @@ export default async function TasacionDetallePage({ params }: PageProps) {
               }
               muted={tasacion.lat == null || tasacion.lng == null}
             />
-            <Field
-              label="Tasador asignado"
-              value={tasadorNombre || 'Sin asignar'}
-              muted={!tasadorNombre}
-            />
+            <div>
+              <dt className="text-ds-xs font-semibold text-ink-muted2 uppercase tracking-wide">
+                Tasador asignado
+              </dt>
+              <dd className="text-ds-md mt-xs">
+                {tasadorNombre ? (
+                  <span className="text-ink-primary">
+                    {tasadorNombre}
+                    {tasadorMatricula && (
+                      <span className="text-ds-xs text-ink-muted2 ml-sm">
+                        Mat. {tasadorMatricula}
+                      </span>
+                    )}
+                  </span>
+                ) : esperandoAsignacion ? (
+                  <span className="inline-block px-md py-xs rounded-full text-ds-xs font-medium bg-status-warningSoft text-status-warningText">
+                    Esperando asignación
+                  </span>
+                ) : (
+                  <span className="text-ink-muted2 italic">Sin asignar</span>
+                )}
+              </dd>
+            </div>
             <Field
               label="Solicitante"
               value={solicitanteNombre || '—'}
