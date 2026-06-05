@@ -5,8 +5,11 @@ import {
   estadoLabels,
   estadoStyles,
   tipoLabels,
+  tasadorNombreDisplay,
+  esEsperandoAsignacion,
   type EstadoTasacion,
   type TipoInmueble,
+  type TasadorDisplay,
 } from '@/lib/labels';
 import { startOfDayBusinessTz, endOfDayBusinessTz } from '@/lib/timezone';
 import TasacionesFilters, { type FiltersState } from './TasacionesFilters';
@@ -226,6 +229,27 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
 
   const items = data ?? [];
   const total = count ?? 0;
+
+  // TSK-85: el tasador asignado no se puede leer con un join directo a profiles
+  // (la RLS `profile_select` solo deja ver el propio profile). La RPC
+  // SECURITY DEFINER `tasadores_de_entidad` valida que el caller sea miembro de
+  // la entidad y devuelve el display del tasador por tasación. Construimos un
+  // map id→tasador; las tasaciones ausentes (tasador_id NULL, DS-22) quedan
+  // como "Sin asignar" / "Esperando asignación" en el render.
+  const { data: tasadoresRaw } = await supabase.rpc('tasadores_de_entidad', {
+    _entidad: entidadId,
+  });
+  const tasadorPorTasacion = new Map<string, TasadorDisplay>();
+  for (const row of tasadoresRaw ?? []) {
+    tasadorPorTasacion.set(row.tasacion_id, {
+      user_id: row.user_id,
+      nombre: row.nombre,
+      apellido: row.apellido,
+      email: row.email,
+      matricula: row.matricula,
+    });
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
@@ -312,13 +336,14 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
               <Th sortKey="tipo" activeSort={sort} dir={dir} href={buildSortHref('tipo')}>Tipo</Th>
               <Th sortKey="direccion" activeSort={sort} dir={dir} href={buildSortHref('direccion')}>Dirección</Th>
               <Th sortKey="estado" activeSort={sort} dir={dir} href={buildSortHref('estado')}>Estado</Th>
+              <ThPlain>Tasador</ThPlain>
               <Th sortKey="valor" activeSort={sort} dir={dir} href={buildSortHref('valor')} align="right">Valor USD</Th>
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-lg py-4xl text-center">
+                <td colSpan={7} className="px-lg py-4xl text-center">
                   <div className="text-ds-md text-ink-muted2">
                     {hayFiltros
                       ? 'No hay tasaciones que coincidan con los filtros.'
@@ -336,6 +361,9 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
                 const estado = t.estado as EstadoTasacion;
                 const tipo = t.tipo as TipoInmueble;
                 const href = `/dashboard/tasaciones/${t.id}`;
+                const tasador = tasadorPorTasacion.get(t.id) ?? null;
+                const tasadorNombre = tasadorNombreDisplay(tasador);
+                const esperando = esEsperandoAsignacion(estado, tasador);
                 return (
                   <tr
                     key={t.id}
@@ -361,6 +389,17 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
                       >
                         {estadoLabels[estado] ?? estado}
                       </span>
+                    </Td>
+                    <Td href={href}>
+                      {tasadorNombre ? (
+                        <span className="text-ink-primary">{tasadorNombre}</span>
+                      ) : esperando ? (
+                        <span className="inline-block px-md py-xs rounded-full text-ds-xs font-medium bg-status-warningSoft text-status-warningText">
+                          Esperando asignación
+                        </span>
+                      ) : (
+                        <span className="text-ink-muted2 italic">Sin asignar</span>
+                      )}
                     </Td>
                     <Td
                       href={href}
@@ -436,6 +475,26 @@ function Th({
           {arrow}
         </span>
       </Link>
+    </th>
+  );
+}
+
+// Header de columna NO ordenable (TSK-85: el tasador asignado no es una columna
+// de la query base, se resuelve por RPC aparte; no participa del sort server-side).
+function ThPlain({
+  children,
+  align = 'left',
+}: {
+  children: React.ReactNode;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <th
+      className={`px-lg py-md text-ds-xs font-semibold uppercase tracking-wide text-ink-muted2 ${
+        align === 'right' ? 'text-right' : 'text-left'
+      }`}
+    >
+      {children}
     </th>
   );
 }

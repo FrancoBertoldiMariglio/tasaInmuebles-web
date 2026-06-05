@@ -451,6 +451,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      tasadores_de_entidad: {
+        Args: {
+          _entidad: string
+        }
+        Returns: {
+          tasacion_id: string
+          user_id: string
+          nombre: string | null
+          apellido: string | null
+          email: string | null
+          matricula: string | null
+        }[]
+      }
     }
     Enums: {
       estado_conservacion: "muy_bueno" | "bueno" | "regular" | "a_reciclar"

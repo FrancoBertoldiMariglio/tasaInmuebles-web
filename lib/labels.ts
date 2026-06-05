@@ -34,6 +34,34 @@ export const estadoStyles: Record<EstadoTasacion, string> = {
   completada: 'bg-status-successSoft text-status-success',
 };
 
+// TSK-85 / TSK-83 — display del tasador asignado a una tasación.
+// La RPC `tasadores_de_entidad` (SECURITY DEFINER) devuelve estos campos por
+// tasación; el join directo a profiles devolvería null bajo la RLS de profiles.
+export type TasadorDisplay = {
+  user_id: string;
+  nombre: string | null;
+  apellido: string | null;
+  email: string | null;
+  matricula: string | null;
+};
+
+// Nombre legible del tasador (nombre + apellido, fallback a email). Devuelve
+// '' cuando no hay datos utilizables.
+export function tasadorNombreDisplay(t: TasadorDisplay | null | undefined): string {
+  if (!t) return '';
+  const nombre = [t.nombre, t.apellido].filter(Boolean).join(' ').trim();
+  return nombre || (t.email ?? '').trim();
+}
+
+// TSK-83 — una solicitud B2B pendiente sin tasador (DS-22) está "esperando
+// asignación": a la espera de que un tasador la tome.
+export function esEsperandoAsignacion(
+  estado: EstadoTasacion,
+  tasador: TasadorDisplay | null | undefined,
+): boolean {
+  return estado === 'pendiente' && !tasador;
+}
+
 export const tipoLabels: Record<TipoInmueble, string> = {
   casa:    'Casa',
   depto:   'Departamento',
