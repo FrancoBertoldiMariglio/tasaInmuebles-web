@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { getEntidadActivaId } from '@/lib/entidad-activa';
+import { getEntidadActivaId, getMembresiaActiva } from '@/lib/entidad-activa';
 import { fetchFotosTasacion } from '@/lib/queries/fotos';
+import AsignarTasadorForm, { type TasadorOption } from './AsignarTasadorForm';
 import {
   estadoLabels,
   estadoStyles,
@@ -130,6 +131,33 @@ export default async function TasacionDetallePage({ params }: PageProps) {
         })
     : null;
 
+  // TSK-91/BR-026: el admin de la entidad puede asignar un tasador a una
+  // solicitud pendiente sin asignar (complementa el self-claim DS-22). Solo
+  // visible para admin (mismo patrón de visibilidad que Miembros/Invitar). Los
+  // tasadores del dropdown salen de listar_miembros_entidad (admin-gated).
+  const membresia = await getMembresiaActiva();
+  const esAdminEntidad = membresia?.roles.includes('admin') ?? false;
+  const puedeAsignar =
+    esAdminEntidad &&
+    entidadId != null &&
+    tasacion.estado === 'pendiente' &&
+    tasacion.tasador_id == null;
+
+  const tasadoresEntidad: TasadorOption[] = puedeAsignar
+    ? await (async () => {
+        const { data } = await supabase.rpc('listar_miembros_entidad', {
+          _entidad: entidadId as string,
+        });
+        return (data ?? [])
+          .filter((m) => (m.roles as string[]).includes('tasador'))
+          .map((m) => ({
+            userId: m.user_id,
+            nombre:
+              [m.nombre, m.apellido].filter(Boolean).join(' ').trim() || m.email,
+          }));
+      })()
+    : [];
+
   const estado = tasacion.estado as EstadoTasacion;
   const tipo = tasacion.tipo as TipoInmueble;
   const motivo = tasacion.motivo as MotivoTasacion;
@@ -238,6 +266,9 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                   <span className="text-ink-muted2 italic">Sin asignar</span>
                 )}
               </dd>
+              {puedeAsignar && (
+                <AsignarTasadorForm tasacionId={id} tasadores={tasadoresEntidad} />
+              )}
             </div>
             <Field
               label="Solicitante"
