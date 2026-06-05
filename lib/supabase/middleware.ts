@@ -16,6 +16,31 @@ const ROLES_WEB: ReadonlySet<RolUsuario> = new Set<RolUsuario>([
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  const path = request.nextUrl.pathname;
+  const isProtected = path.startsWith('/dashboard');
+
+  // Optimización (perf): el round-trip a Supabase de getUser() solo tiene sentido
+  // si hay un token de sesión que refrescar. Supabase persiste la sesión en cookies
+  // con prefijo 'sb-'. Si no hay ninguna, no hay nada que refrescar ni usuario que
+  // validar, así que se evita el round-trip de auth en rutas públicas ('/', '/login',
+  // '/mobile-only', etc.) que pasan el matcher pero no requieren sesión.
+  const hasSessionCookie = request.cookies
+    .getAll()
+    .some(({ name }) => name.startsWith('sb-'));
+
+  if (!hasSessionCookie) {
+    // Sin cookies de sesión: si la ruta está protegida, el usuario no está
+    // autenticado y se lo manda a /login. En cualquier otra ruta, se devuelve
+    // la response directa sin tocar Supabase.
+    if (isProtected) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('next', path);
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
+
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -36,8 +61,6 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANTE: getUser() refresca la sesión SSR y reescribe cookies vía setAll.
   // No mover ni envolver en condicionales que lo salteen.
   const { data: { user } } = await supabase.auth.getUser();
-  const path = request.nextUrl.pathname;
-  const isProtected = path.startsWith('/dashboard');
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
