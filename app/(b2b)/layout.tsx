@@ -10,6 +10,7 @@ const navItems = [
   { href: '/dashboard/tasaciones', label: 'Tasaciones', icon: '▤' },
   { href: '/dashboard/nueva', label: 'Solicitar', icon: '＋' },
   { href: '/dashboard/metricas', label: 'Métricas', icon: '▦' },
+  { href: '/dashboard/invitar', label: 'Invitar', icon: '✉', adminOnly: true },
 ];
 
 export default async function B2BLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,11 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
     listarMembresias(),
     getEntidadActivaId(),
   ]);
+
+  const esAdmin = membresias
+    .find((m) => m.entidad.id === entidadActivaId)
+    ?.roles.includes('admin') ?? false;
+  const visibleNav = navItems.filter((item) => !item.adminOnly || esAdmin);
 
   return (
     <div className="min-h-screen flex bg-surface-page">
@@ -45,7 +51,7 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
         )}
 
         <nav className="flex-1 space-y-xs">
-          {navItems.map((item) => (
+          {visibleNav.map((item) => (
             <NavLink key={item.href} href={item.href} icon={item.icon}>
               {item.label}
             </NavLink>
