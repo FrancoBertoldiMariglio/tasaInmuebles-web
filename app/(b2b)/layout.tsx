@@ -11,6 +11,7 @@ const navItems = [
   { href: '/dashboard/nueva', label: 'Solicitar', icon: '＋' },
   { href: '/dashboard/metricas', label: 'Métricas', icon: '▦' },
   { href: '/dashboard/miembros', label: 'Miembros', icon: '◍', adminOnly: true },
+  { href: '/dashboard/invitar', label: 'Invitar', icon: '✉', adminOnly: true },
 ] as const;
 
 export default async function B2BLayout({ children }: { children: React.ReactNode }) {
