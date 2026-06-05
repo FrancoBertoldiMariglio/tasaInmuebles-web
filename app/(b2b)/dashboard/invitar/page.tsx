@@ -12,7 +12,7 @@ export default function InvitarPage() {
     <div className="max-w-3xl">
       <div className="mb-3xl">
         <div className="text-ds-sm font-medium text-ink-muted uppercase tracking-wide">
-          TSK-37
+          Invitación
         </div>
         <h1 className="text-ds-4xl font-bold text-ink-primary tracking-tight mt-xs">
           Invitar miembro

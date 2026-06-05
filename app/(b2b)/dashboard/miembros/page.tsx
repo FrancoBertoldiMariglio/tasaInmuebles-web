@@ -46,7 +46,7 @@ export default async function MiembrosPage() {
     <div className="max-w-5xl space-y-2xl">
       <div>
         <div className="text-ds-sm font-medium text-ink-muted uppercase tracking-wide">
-          DS-02 · Administración de entidad
+          Administración de entidad
         </div>
         <h1 className="text-ds-4xl font-bold text-ink-primary tracking-tight mt-xs">
           Miembros
