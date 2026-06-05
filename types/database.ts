@@ -465,6 +465,13 @@ export type Database = {
           matricula: string | null
         }[]
       }
+      asignar_tasador_a_tasacion: {
+        Args: {
+          p_tasacion_id: string
+          p_tasador_id: string
+        }
+        Returns: Database["public"]["Tables"]["tasaciones"]["Row"]
+      }
     }
     Enums: {
       estado_conservacion: "muy_bueno" | "bueno" | "regular" | "a_reciclar"
