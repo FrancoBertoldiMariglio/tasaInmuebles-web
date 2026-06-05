@@ -13,9 +13,13 @@ export type AceptarState = {
  *
  * Precondición: el invitado ya verificó el token (verifyOtp en el cliente),
  * por lo que existe una sesión SSR válida. Acá:
- *  1. Actualiza la contraseña del usuario.
- *  2. Crea el vínculo entidad_miembros (rol solicitante por default dentro de
+ *  1. Crea el vínculo entidad_miembros (rol solicitante por default dentro de
  *     la entidad) usando el entidad_id que viajó en el metadata de la invitación.
+ *  2. Recién después actualiza la contraseña del usuario.
+ *
+ * El orden importa: si el vínculo falla (entidad borrada, FK rota, transitorio
+ * de red), NO confirmamos la contraseña, evitando dejar la cuenta a medio-aceptar
+ * (con password seteada pero sin membresía).
  *
  * El profile (rol cliente_b2b) ya fue creado por el trigger handle_new_user
  * al confirmarse el usuario. El insert de membresía usa service-role porque
@@ -39,11 +43,8 @@ export async function finalizarInvitacion(
     return { error: 'La invitación no tiene una entidad asociada.' };
   }
 
-  const { error: pwError } = await supabase.auth.updateUser({ password });
-  if (pwError) {
-    return { error: `No se pudo establecer la contraseña: ${pwError.message}` };
-  }
-
+  // 1) Vincular a la entidad PRIMERO: si falla, no confirmamos la contraseña
+  //    y la cuenta no queda en estado inconsistente (password sin membresía).
   const admin = createAdminClient();
   const { error: miembroError } = await admin
     .from('entidad_miembros')
@@ -54,6 +55,12 @@ export async function finalizarInvitacion(
 
   if (miembroError) {
     return { error: `No se pudo vincularte a la entidad: ${miembroError.message}` };
+  }
+
+  // 2) Recién con la membresía garantizada, seteamos la contraseña.
+  const { error: pwError } = await supabase.auth.updateUser({ password });
+  if (pwError) {
+    return { error: `No se pudo establecer la contraseña: ${pwError.message}` };
   }
 
   return { ok: true };
