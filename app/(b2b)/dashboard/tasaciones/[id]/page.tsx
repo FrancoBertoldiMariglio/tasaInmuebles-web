@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getEntidadActivaId } from '@/lib/entidad-activa';
+import { fetchFotosTasacion } from '@/lib/queries/fotos';
 import {
   estadoLabels,
   estadoStyles,
@@ -15,6 +17,12 @@ import {
 
 type PageProps = {
   params: Promise<{ id: string }>;
+};
+
+const cierreMetodoLabels: Record<string, string> = {
+  fitt_servini: 'Valor técnico (Fitt-Servini)',
+  override: 'Override manual',
+  comite: 'Consenso del comité',
 };
 
 function formatArs(value: number | null): string {
@@ -46,17 +54,21 @@ function formatUsdMuestra(value: number | null): string {
 export default async function TasacionDetallePage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
+  const entidadId = await getEntidadActivaId();
 
-  const { data: tasacion, error } = await supabase
-    .from('tasaciones')
-    .select(`
-      *,
-      solicitante:solicitantes(*),
-      tasador:profiles!tasaciones_tasador_id_fkey(nombre, apellido, email, matricula),
-      entidad:entidades(nombre, tipo)
-    `)
-    .eq('id', id)
-    .single();
+  const { data: tasacion, error } = entidadId
+    ? await supabase
+        .from('tasaciones')
+        .select(`
+          *,
+          solicitante:solicitantes(*),
+          tasador:profiles!tasaciones_tasador_id_fkey(nombre, apellido, email, matricula),
+          entidad:entidades(nombre, tipo)
+        `)
+        .eq('id', id)
+        .eq('entidad_id', entidadId)
+        .single()
+    : { data: null, error: null };
 
   if (error || !tasacion) {
     return (
@@ -78,6 +90,22 @@ export default async function TasacionDetallePage({ params }: PageProps) {
       </div>
     );
   }
+
+  // Fotos (bucket privado → signed URLs) y propuestas del comité (DS-12).
+  // Se cargan en paralelo; un fallo de fotos no debe tumbar la página.
+  const [fotos, { data: propuestasRaw }] = await Promise.all([
+    fetchFotosTasacion(id).catch(() => []),
+    supabase
+      .from('comite_propuestas')
+      .select(`
+        id, valor_ars, valor_usd, notas, created_at,
+        tasador:profiles!comite_propuestas_tasador_id_fkey(nombre, apellido, matricula)
+      `)
+      .eq('tasacion_id', id)
+      .order('created_at', { ascending: true }),
+  ]);
+
+  const propuestas = propuestasRaw ?? [];
 
   const estado = tasacion.estado as EstadoTasacion;
   const tipo = tasacion.tipo as TipoInmueble;
@@ -121,6 +149,25 @@ export default async function TasacionDetallePage({ params }: PageProps) {
         </span>
       </header>
 
+      {fotos.length > 0 && (
+        <section className="bg-surface-card border border-line-soft rounded-xl shadow-card p-xl">
+          <h2 className="text-ds-lg font-semibold text-ink-primary mb-lg">
+            Fotos <span className="text-ink-muted2 font-normal">({fotos.length})</span>
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-md">
+            {fotos.map((foto) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={foto.id}
+                src={foto.url}
+                alt={foto.descripcion ?? 'Foto del inmueble'}
+                className="w-full aspect-square object-cover rounded-md border border-line-soft bg-surface-pageAlt"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-xl">
         <section className="lg:col-span-2 bg-surface-card border border-line-soft rounded-xl shadow-card p-xl">
           <h2 className="text-ds-lg font-semibold text-ink-primary mb-lg">Detalles</h2>
@@ -132,6 +179,20 @@ export default async function TasacionDetallePage({ params }: PageProps) {
             <Field label="Tipo de inmueble" value={tipoLabels[tipo] ?? tipo} />
             <Field label="Motivo" value={motivoLabels[motivo] ?? motivo} />
             <Field label="Domicilio" value={tasacion.domicilio ?? '—'} />
+            <Field
+              label="Padrón inmobiliario"
+              value={tasacion.padron_inmobiliario ?? '—'}
+              muted={!tasacion.padron_inmobiliario}
+            />
+            <Field
+              label="Coordenadas"
+              value={
+                tasacion.lat != null && tasacion.lng != null
+                  ? `${tasacion.lat}, ${tasacion.lng}`
+                  : '—'
+              }
+              muted={tasacion.lat == null || tasacion.lng == null}
+            />
             <Field
               label="Tasador asignado"
               value={tasadorNombre || 'Sin asignar'}
@@ -185,6 +246,32 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                       {formatArs(tasacion.valor_robotomus_ars)}
                     </dd>
                   </div>
+                )}
+              </dl>
+            </>
+          )}
+          {tasacion.cierre_at != null && (
+            <>
+              <hr className="my-lg border-line-soft" />
+              <dl className="space-y-sm">
+                <div className="flex items-baseline justify-between">
+                  <dt className="text-ds-sm text-ink-muted2">Cierre del comité</dt>
+                  <dd className="text-ds-sm font-medium text-ink-primary">
+                    {new Date(tasacion.cierre_at).toLocaleDateString('es-AR')}
+                  </dd>
+                </div>
+                {tasacion.cierre_metodo && (
+                  <div className="flex items-baseline justify-between">
+                    <dt className="text-ds-sm text-ink-muted2">Método</dt>
+                    <dd className="text-ds-sm font-medium text-ink-primary">
+                      {cierreMetodoLabels[tasacion.cierre_metodo] ?? tasacion.cierre_metodo}
+                    </dd>
+                  </div>
+                )}
+                {tasacion.cierre_motivo && (
+                  <p className="text-ds-xs text-ink-muted2 italic pt-xs">
+                    {tasacion.cierre_motivo}
+                  </p>
                 )}
               </dl>
             </>
@@ -266,6 +353,62 @@ export default async function TasacionDetallePage({ params }: PageProps) {
           </p>
         ) : (
           <p className="text-ds-md text-ink-muted2 italic">Sin descripción</p>
+        )}
+      </section>
+
+      <section className="bg-surface-card border border-line-soft rounded-xl shadow-card p-xl">
+        <h2 className="text-ds-lg font-semibold text-ink-primary mb-lg">
+          Comité de tasación{' '}
+          <span className="text-ink-muted2 font-normal">
+            ({propuestas.length} propuesta{propuestas.length === 1 ? '' : 's'})
+          </span>
+        </h2>
+        {propuestas.length > 0 ? (
+          <ul className="space-y-md">
+            {propuestas.map((p) => {
+              const nombre = [p.tasador?.nombre, p.tasador?.apellido]
+                .filter(Boolean)
+                .join(' ')
+                .trim();
+              return (
+                <li
+                  key={p.id}
+                  className="border border-line-soft rounded-md p-lg bg-surface-pageAlt"
+                >
+                  <div className="flex items-baseline justify-between gap-md">
+                    <div className="text-ds-md font-medium text-ink-primary">
+                      {nombre || 'Miembro del comité'}
+                      {p.tasador?.matricula && (
+                        <span className="text-ds-xs text-ink-muted2 ml-sm">
+                          Mat. {p.tasador.matricula}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-ds-xs text-ink-muted2">
+                      {new Date(p.created_at).toLocaleDateString('es-AR')}
+                    </div>
+                  </div>
+                  <div className="flex gap-xl mt-sm">
+                    <span className="text-ds-sm text-ink-primary tabular-nums">
+                      {formatArs(p.valor_ars)}
+                    </span>
+                    <span className="text-ds-sm text-ink-primary tabular-nums">
+                      {formatUsd(p.valor_usd)}
+                    </span>
+                  </div>
+                  {p.notas && (
+                    <p className="text-ds-sm text-ink-muted2 mt-sm whitespace-pre-wrap">
+                      {p.notas}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-ds-md text-ink-muted2 italic">
+            Sin propuestas registradas todavía.
+          </p>
         )}
       </section>
 
