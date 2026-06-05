@@ -50,7 +50,9 @@ export default function AgregarMiembroForm() {
           Roles<span className="text-status-danger ml-xs">*</span>
         </legend>
         <div className="flex flex-wrap gap-md">
-          {ROLES_MIEMBRO.map((rol) => (
+          {/* Alcance DS-02: el ABM solo da de alta tasadores y solicitantes.
+              El rol admin no es asignable desde acá (enforce en la RPC). */}
+          {ROLES_MIEMBRO.filter((rol) => rol !== 'admin').map((rol) => (
             <label
               key={rol}
               className="flex items-center gap-sm px-md py-sm border border-line rounded-md cursor-pointer hover:bg-surface-page transition-colors duration-fast"

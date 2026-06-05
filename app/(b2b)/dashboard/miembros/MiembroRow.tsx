@@ -62,22 +62,44 @@ export default function MiembroRow({ miembro }: { miembro: MiembroView }) {
         ) : (
           <form action={editAction} id={`edit-${miembro.userId}`} className="space-y-sm">
             <input type="hidden" name="userId" value={miembro.userId} />
+            {/* El admin no puede destildar su propio rol admin (checkbox
+                disabled no postea valor): lo preservamos vía hidden. */}
+            {miembro.esActual && miembro.roles.includes('admin') && (
+              <input type="hidden" name="roles" value="admin" />
+            )}
             <div className="flex flex-wrap gap-sm">
-              {ROLES_MIEMBRO.map((rol) => (
-                <label
-                  key={rol}
-                  className="flex items-center gap-xs px-sm py-xs border border-line rounded-md cursor-pointer text-ds-sm"
-                >
-                  <input
-                    type="checkbox"
-                    name="roles"
-                    value={rol}
-                    defaultChecked={miembro.roles.includes(rol)}
-                    className="accent-brand-primary"
-                  />
-                  {rolMiembroLabels[rol]}
-                </label>
-              ))}
+              {ROLES_MIEMBRO
+                // El rol 'admin' no es asignable desde el ABM (alcance DS-02:
+                // tasadores y solicitantes). Solo se muestra como editable si el
+                // miembro YA es admin, y nunca se permite destildarlo en la propia
+                // fila (anti-lockout). El enforce real vive en la RPC.
+                .filter(
+                  (rol) =>
+                    rol !== 'admin' || miembro.roles.includes('admin'),
+                )
+                .map((rol) => {
+                  const esAdminPropio = rol === 'admin' && miembro.esActual;
+                  return (
+                    <label
+                      key={rol}
+                      className={`flex items-center gap-xs px-sm py-xs border border-line rounded-md text-ds-sm ${
+                        esAdminPropio
+                          ? 'opacity-60 cursor-not-allowed'
+                          : 'cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="roles"
+                        value={rol}
+                        defaultChecked={miembro.roles.includes(rol)}
+                        disabled={esAdminPropio}
+                        className="accent-brand-primary"
+                      />
+                      {rolMiembroLabels[rol]}
+                    </label>
+                  );
+                })}
             </div>
             {editState.error && (
               <p className="text-ds-xs text-status-danger">{editState.error}</p>
