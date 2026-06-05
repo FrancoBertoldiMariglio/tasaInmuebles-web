@@ -96,7 +96,15 @@ const INT4_MAX = 2147483647;
 // `numero_busqueda` (= lpad(numero::text, 4, '0'), el mismo formato #0023 que
 // muestra la UI) vía `numero_busqueda.ilike.%term%`. PostgREST `.or()` no
 // admite cast/función sobre `numero` (int4), por eso se introdujo esa columna
-// generada (migration 20260605170000). Así:
+// generada (migration 20260605170000).
+//
+// ⚠️ ORDEN DE DESPLIEGUE: la columna `numero_busqueda` solo existe tras aplicar
+// la migración 20260605170000 en la BD remota. Esa migración DEBE correrse
+// ANTES de deployar este código web en Vercel; si no, toda búsqueda numérica
+// rompe el listado (PostgREST 42703, columna inexistente). Ver banner de orden
+// obligatorio en el header de la migración.
+//
+// Así:
 //   - "23"   matchea #0023, #0230, #1234
 //   - "0023" matchea #0023
 // que es la paridad práctica con el substring del mobile.
