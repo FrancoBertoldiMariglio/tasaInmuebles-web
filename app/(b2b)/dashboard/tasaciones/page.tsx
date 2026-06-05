@@ -8,6 +8,7 @@ import {
   type EstadoTasacion,
   type TipoInmueble,
 } from '@/lib/labels';
+import { startOfDayBusinessTz, endOfDayBusinessTz } from '@/lib/timezone';
 import TasacionesFilters, { type FiltersState } from './TasacionesFilters';
 import TasacionesRealtime from './TasacionesRealtime';
 
@@ -113,12 +114,14 @@ export default async function TasacionesPage({ searchParams }: PageProps) {
     dataQuery = dataQuery.eq('tipo', tipo);
   }
   if (desde) {
-    countQuery = countQuery.gte('created_at', `${desde}T00:00:00`);
-    dataQuery = dataQuery.gte('created_at', `${desde}T00:00:00`);
+    const desdeTs = startOfDayBusinessTz(desde);
+    countQuery = countQuery.gte('created_at', desdeTs);
+    dataQuery = dataQuery.gte('created_at', desdeTs);
   }
   if (hasta) {
-    countQuery = countQuery.lte('created_at', `${hasta}T23:59:59.999`);
-    dataQuery = dataQuery.lte('created_at', `${hasta}T23:59:59.999`);
+    const hastaTs = endOfDayBusinessTz(hasta);
+    countQuery = countQuery.lte('created_at', hastaTs);
+    dataQuery = dataQuery.lte('created_at', hastaTs);
   }
   if (q) {
     const orClause = buildSearchOr(q);
