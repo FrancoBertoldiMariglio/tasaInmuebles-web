@@ -4,6 +4,7 @@ import { listarMembresias, getEntidadActivaId } from '@/lib/entidad-activa';
 import LogoutButton from '@/components/LogoutButton';
 import NavLink from '@/components/NavLink';
 import EntidadSelector from '@/components/EntidadSelector';
+import MobileGate from '@/components/MobileGate';
 
 const navItems = [
   { href: '/dashboard', label: 'Resumen', icon: '◇' },
@@ -42,7 +43,12 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
   });
 
   return (
-    <div className="min-h-screen flex bg-surface-page">
+    <>
+      {/* TSK-103: en < md (768px) el dashboard se vería cortado; mostramos un
+          gate que invita a usar la app móvil. CSS-first (sin JS de user-agent):
+          el gate es `md:hidden` y el dashboard `hidden md:flex`. */}
+      <MobileGate />
+      <div className="min-h-screen hidden md:flex bg-surface-page">
       <aside className="w-64 bg-surface-card border-r border-line-soft px-lg py-xl flex flex-col">
         <div className="px-sm mb-2xl flex items-center gap-sm">
           <div className="w-2xl h-2xl rounded-md bg-brand-primary" />
@@ -84,7 +90,8 @@ export default async function B2BLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="flex-1 px-4xl py-3xl overflow-auto">{children}</main>
-    </div>
+        <main className="flex-1 px-4xl py-3xl overflow-auto">{children}</main>
+      </div>
+    </>
   );
 }
