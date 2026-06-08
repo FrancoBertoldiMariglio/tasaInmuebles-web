@@ -44,6 +44,9 @@ export default function TasacionesRealtime({ entidadId }: Props) {
       if (session?.access_token) {
         await supabase.realtime.setAuth(session.access_token);
       }
+      // setAuth es async: el effect puede haberse limpiado durante el await.
+      // Sin este guard se crearía un channel huérfano que el cleanup ya no ve.
+      if (cancelled) return;
 
       channel = supabase
         .channel(`tasaciones-entidad-${entidadId}`)
@@ -67,7 +70,12 @@ export default function TasacionesRealtime({ entidadId }: Props) {
     // Si el token se refresca, reasignarlo al socket para no perder la sesión.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Solo reaccionamos a refrescos de token reales. El disparo inicial
+      // (INITIAL_SESSION / SIGNED_IN del mount) ya está cubierto por el
+      // setAuth de subscribe(); re-llamarlo acá sería redundante y dependiente
+      // del timing relativo a getSession().
+      if (event !== 'TOKEN_REFRESHED') return;
       if (session?.access_token) {
         void supabase.realtime.setAuth(session.access_token);
       }
