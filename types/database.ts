@@ -235,6 +235,7 @@ export type Database = {
           cierre_metodo: string | null
           cierre_motivo: string | null
           cliente_b2c_id: string | null
+          comite_revelado_at: string | null
           completada_at: string | null
           creado_por: string | null
           created_at: string
@@ -265,6 +266,7 @@ export type Database = {
           tasador_asignado_at: string | null
           tasador_id: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
           updated_at: string
           valor_ars: number | null
           valor_fitt_servini_ars: number | null
@@ -280,6 +282,7 @@ export type Database = {
           cierre_metodo?: string | null
           cierre_motivo?: string | null
           cliente_b2c_id?: string | null
+          comite_revelado_at?: string | null
           completada_at?: string | null
           creado_por?: string | null
           created_at?: string
@@ -299,6 +302,7 @@ export type Database = {
           lng?: number | null
           motivo: Database["public"]["Enums"]["motivo_tasacion"]
           numero?: number
+          numero_busqueda?: string | null
           padron_inmobiliario?: string | null
           pdf_compartido_at?: string | null
           pdf_generado_at?: string | null
@@ -309,6 +313,7 @@ export type Database = {
           tasador_asignado_at?: string | null
           tasador_id?: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion?: Database["public"]["Enums"]["tipo_tasacion"]
           updated_at?: string
           valor_ars?: number | null
           valor_fitt_servini_ars?: number | null
@@ -324,6 +329,7 @@ export type Database = {
           cierre_metodo?: string | null
           cierre_motivo?: string | null
           cliente_b2c_id?: string | null
+          comite_revelado_at?: string | null
           completada_at?: string | null
           creado_por?: string | null
           created_at?: string
@@ -343,6 +349,7 @@ export type Database = {
           lng?: number | null
           motivo?: Database["public"]["Enums"]["motivo_tasacion"]
           numero?: number
+          numero_busqueda?: string | null
           padron_inmobiliario?: string | null
           pdf_compartido_at?: string | null
           pdf_generado_at?: string | null
@@ -353,6 +360,7 @@ export type Database = {
           tasador_asignado_at?: string | null
           tasador_id?: string | null
           tipo?: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion?: Database["public"]["Enums"]["tipo_tasacion"]
           updated_at?: string
           valor_ars?: number | null
           valor_fitt_servini_ars?: number | null
@@ -403,9 +411,223 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      actualizar_roles_miembro: {
+        Args: {
+          _entidad: string
+          _roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          _user: string
+        }
+        Returns: undefined
+      }
+      agregar_miembro_por_email: {
+        Args: {
+          _email: string
+          _entidad: string
+          _roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+        }
+        Returns: string
+      }
+      asignar_tasador_a_tasacion: {
+        Args: { p_tasacion_id: string; p_tasador_id: string }
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      can_access_solicitante: {
+        Args: { _solicitante_id: string }
+        Returns: boolean
+      }
+      can_access_tasacion_comite: {
+        Args: { _tasacion_id: string }
+        Returns: boolean
+      }
+      can_generar_informe: { Args: { _tasacion_id: string }; Returns: boolean }
+      can_read_tasacion: { Args: { _tasacion_id: string }; Returns: boolean }
+      can_write_informe: { Args: { _tasacion_id: string }; Returns: boolean }
+      can_write_tasacion: { Args: { _tasacion_id: string }; Returns: boolean }
+      crear_tasacion_profesional: {
+        Args: {
+          p_amenities: string[]
+          p_antiguedad_anios: number
+          p_banios: number
+          p_descripcion: string
+          p_domicilio: string
+          p_dormitorios: number
+          p_estado_conservacion: Database["public"]["Enums"]["estado_conservacion"]
+          p_lat: number
+          p_lng: number
+          p_motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          p_padron_inmobiliario: string
+          p_sol_apellido: string
+          p_sol_email: string
+          p_sol_nombre: string
+          p_sol_telefono: string
+          p_sup_cubierta: number
+          p_sup_total: number
+          p_tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          p_tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+        }
+        Returns: {
+          id: string
+          numero: number
+        }[]
+      }
       current_user_rol: {
         Args: never
         Returns: Database["public"]["Enums"]["rol_usuario"]
+      }
+      listar_miembros_entidad: {
+        Args: { _entidad: string }
+        Returns: {
+          apellido: string
+          created_at: string
+          email: string
+          matricula: string
+          nombre: string
+          roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          telefono: string
+          user_id: string
+        }[]
+      }
+      marcar_inspeccion_ocular: {
+        Args: { _cuando?: string; _tasacion_id: string }
+        Returns: string
+      }
+      marcar_pdf_compartido: { Args: { _tasacion_id: string }; Returns: string }
+      programar_visita: {
+        Args: { _cuando?: string; _tasacion_id: string }
+        Returns: string
+      }
+      quitar_miembro_entidad: {
+        Args: { _entidad: string; _user: string }
+        Returns: undefined
+      }
+      reclamar_tasacion: {
+        Args: { p_tasacion_id: string }
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_pdf_url: {
+        Args: { _pdf_url: string; _tasacion_id: string }
+        Returns: string
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      tasacion_id_from_storage_name: {
+        Args: { _name: string }
+        Returns: string
+      }
+      tasadores_de_entidad: {
+        Args: { _entidad: string }
+        Returns: {
+          apellido: string
+          email: string
+          matricula: string
+          nombre: string
+          tasacion_id: string
+          user_id: string
+        }[]
       }
       user_has_role_in_entidad: {
         Args: {
@@ -413,64 +635,6 @@ export type Database = {
           _role: Database["public"]["Enums"]["rol_entidad_miembro"]
         }
         Returns: boolean
-      }
-      listar_miembros_entidad: {
-        Args: {
-          _entidad: string
-        }
-        Returns: {
-          user_id: string
-          email: string
-          nombre: string | null
-          apellido: string | null
-          telefono: string | null
-          matricula: string | null
-          roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
-          created_at: string
-        }[]
-      }
-      agregar_miembro_por_email: {
-        Args: {
-          _entidad: string
-          _email: string
-          _roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
-        }
-        Returns: string
-      }
-      actualizar_roles_miembro: {
-        Args: {
-          _entidad: string
-          _user: string
-          _roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
-        }
-        Returns: undefined
-      }
-      quitar_miembro_entidad: {
-        Args: {
-          _entidad: string
-          _user: string
-        }
-        Returns: undefined
-      }
-      tasadores_de_entidad: {
-        Args: {
-          _entidad: string
-        }
-        Returns: {
-          tasacion_id: string
-          user_id: string
-          nombre: string | null
-          apellido: string | null
-          email: string | null
-          matricula: string | null
-        }[]
-      }
-      asignar_tasador_a_tasacion: {
-        Args: {
-          p_tasacion_id: string
-          p_tasador_id: string
-        }
-        Returns: Database["public"]["Tables"]["tasaciones"]["Row"]
       }
     }
     Enums: {
@@ -508,6 +672,7 @@ export type Database = {
         | "galpon"
         | "local"
         | "oficina"
+      tipo_tasacion: "venta" | "alquiler" | "ambos"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -660,6 +825,7 @@ export const Constants = {
         "unipersonal",
       ],
       tipo_inmueble: ["casa", "depto", "terreno", "galpon", "local", "oficina"],
+      tipo_tasacion: ["venta", "alquiler", "ambos"],
     },
   },
 } as const
