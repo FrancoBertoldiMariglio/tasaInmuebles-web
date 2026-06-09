@@ -248,5 +248,22 @@ para el camino K8s/AWS.
 ## 9. Git / repos
 
 - Remoto: `git@gitlab.com:inmoclick-dev/tasainmuebles.git` (este repo = **solo web**).
-- Branches: `main` (protegida) y `develop`, ambas con la historia web-only.
 - Forma parte del workspace `Cocucci/`; ver `../CLAUDE.md` §7 para el layout de los 3 repos.
+
+### Estrategia de ramas
+
+```
+develop ──▶ staging ──▶ main
+(integración)  (QA/pruebas)  (producción, protegida)
+```
+
+| Rama | Propósito | Deploy |
+|---|---|---|
+| `develop` | Integración del trabajo diario. Base de la que salen las features. | Preview / dev |
+| `staging` | Estabilización y pruebas (QA, demos, validación) antes de prod. | Entorno de staging |
+| `main` | Producción. **Protegida** (no se commitea directo). | Producción |
+
+Promoción siempre hacia adelante: `develop → staging → main` (vía merge/MR). El
+README y todo el código viajan con los merges, por eso **el README es único y
+branch-agnóstico** (no se mantiene una versión por rama). Lo que difiere entre
+entornos son las **variables de entorno** (§5), no el código ni la doc.
