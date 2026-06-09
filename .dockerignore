@@ -1,0 +1,31 @@
+# Build artifacts / deps (se regeneran dentro de la imagen)
+node_modules
+.next
+out
+
+# Secrets y config local — NUNCA hornear en la imagen
+.env
+.env.*
+.vercel
+
+# Git / meta
+.git
+.gitignore
+.gitattributes
+
+# Docker / docs (no son input del build)
+Dockerfile
+.dockerignore
+nginx.conf
+README.md
+*.md
+
+# Editor / SO
+.idea
+.vscode
+.DS_Store
+*.swp
+*~
+
+# Tests / tooling
+tsconfig.tsbuildinfo
