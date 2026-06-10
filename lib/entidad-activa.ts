@@ -115,6 +115,8 @@ export async function setEntidadActiva(entidadId: string): Promise<boolean> {
   cookieStore.set(COOKIE_NAME, entidadId, {
     maxAge: COOKIE_MAX_AGE,
     httpOnly: true,
+    // En producción (HTTPS forzado en K8s) la cookie nunca debe viajar por HTTP.
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
   });

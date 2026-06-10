@@ -101,12 +101,15 @@ describe('finalizarInvitacion', () => {
   it('error al vincular entidad → error y NO setea password', async () => {
     const session = mockSessionClient(USER);
     mockCreateClient.mockResolvedValue(session.client as never);
-    const admin = mockAdmin({ error: { message: 'FK rota' } });
+    const admin = mockAdmin({ error: { code: '23503', message: 'FK rota: tabla entidad_miembros' } });
     mockCreateAdminClient.mockReturnValue(admin.client as never);
 
     const res = await finalizarInvitacion('passwordok');
 
-    expect(res.error).toBe('No se pudo vincularte a la entidad: FK rota');
+    // El mensaje crudo de Postgres NO debe filtrarse al usuario (review fix).
+    expect(res.error).toMatch(/^No se pudo vincularte a la entidad: /);
+    expect(res.error).not.toContain('FK rota');
+    expect(res.error).not.toContain('entidad_miembros');
     expect(res.ok).toBeUndefined();
     expect(session.updateUser).not.toHaveBeenCalled();
   });

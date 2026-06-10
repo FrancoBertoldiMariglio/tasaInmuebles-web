@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getMembresiaActiva, setEntidadActiva } from '@/lib/entidad-activa';
+import { traducirError } from '@/lib/errors';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import type { Database } from '@/types/database';
@@ -76,7 +77,8 @@ export async function crearTasacion(
     .select('id, numero')
     .single();
 
-  if (error) return { error: `Error al guardar: ${error.message}` };
+  // No exponer el mensaje crudo de Postgres al usuario.
+  if (error) return { error: `Error al guardar: ${traducirError(error).mensaje}` };
 
   revalidatePath('/dashboard/tasaciones');
   redirect(`/dashboard/tasaciones?creada=${data.numero}`);

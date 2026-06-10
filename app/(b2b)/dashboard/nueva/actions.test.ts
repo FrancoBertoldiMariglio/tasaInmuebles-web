@@ -210,13 +210,16 @@ describe('crearTasacion', () => {
   it('error del backend → mensaje con prefijo, sin redirigir', async () => {
     const m = mockInsertClient(USER, {
       data: null,
-      error: { message: 'violates fk constraint' },
+      error: { code: '23503', message: 'violates fk constraint "tasaciones_entidad_id_fkey"' },
     });
     mockCreateClient.mockResolvedValue(m.client as never);
 
     const res = await crearTasacion({}, form());
 
-    expect(res.error).toBe('Error al guardar: violates fk constraint');
+    // El mensaje crudo de Postgres NO debe filtrarse al usuario (review fix).
+    expect(res.error).toMatch(/^Error al guardar: /);
+    expect(res.error).not.toContain('fkey');
+    expect(res.error).not.toContain('violates');
     expect(mockRevalidatePath).not.toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
