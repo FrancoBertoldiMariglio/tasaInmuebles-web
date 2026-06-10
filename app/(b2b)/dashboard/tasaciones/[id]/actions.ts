@@ -2,10 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getMembresiaActiva } from '@/lib/entidad-activa';
+import { traducirError } from '@/lib/errors';
 import { revalidatePath } from 'next/cache';
 
 export type AsignarTasadorState = {
+  /** Mensaje de error ya traducido a español (listo para render). */
   error?: string;
+  /** Título corto del error traducido (para destacar el motivo). */
+  errorTitulo?: string;
   ok?: string;
 };
 
@@ -40,7 +44,13 @@ export async function asignarTasador(
     p_tasador_id: tasadorId,
   });
 
-  if (error) return { error: error.message };
+  // El error crudo de la RPC (SQLSTATE de RLS/check/raise) se traduce a un
+  // mensaje de usuario en español rioplatense en vez de exponer internals de
+  // Postgres. La race "otro la tomó/asignó" llega como raise P0002 legible.
+  if (error) {
+    const { titulo, mensaje } = traducirError(error);
+    return { error: mensaje, errorTitulo: titulo };
+  }
 
   revalidatePath(`/dashboard/tasaciones/${tasacionId}`);
   revalidatePath('/dashboard/tasaciones');
