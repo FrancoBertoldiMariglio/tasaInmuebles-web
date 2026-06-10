@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createClient } from '@/lib/supabase/server';
 import { getMembresiaActiva } from '@/lib/entidad-activa';
 import { revalidatePath } from 'next/cache';
-import { asignarTasador, type AsignarTasadorState } from './actions';
+import {
+  asignarTasador,
+  liberarAlPool,
+  reasignarTasador,
+  type AsignarTasadorState,
+} from './actions';
 
 // Mockeamos el cliente de Supabase, la membresía activa y revalidatePath para
 // aislar la server action de la red/cache y testear su lógica de gating + la
@@ -121,5 +126,124 @@ describe('asignarTasador', () => {
 
     expect(res.errorTitulo).toBe('Acción no permitida');
     expect(res.error).toBe('La tasación ya fue tomada por otro tasador.');
+  });
+});
+
+describe('liberarAlPool (TSK-119)', () => {
+  it('rechaza si falta el id de tasación', async () => {
+    const res = await liberarAlPool(INITIAL, formData({}));
+    expect(res).toEqual({ error: 'Tasación inválida.' });
+    expect(mockGetMembresia).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si la cuenta no tiene membresía', async () => {
+    mockGetMembresia.mockResolvedValue(null);
+    const res = await liberarAlPool(INITIAL, formData({ tasacionId: 'tas-1' }));
+    expect(res.error).toMatch(/no está vinculada/);
+  });
+
+  it('rechaza si el rol no es admin', async () => {
+    mockGetMembresia.mockResolvedValue({ entidad_id: 'ent-1', roles: ['tasador'] } as never);
+    const res = await liberarAlPool(INITIAL, formData({ tasacionId: 'tas-1' }));
+    expect(res.error).toMatch(/administrador/);
+  });
+
+  it('happy path: libera, revalida y devuelve ok', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaAdmin());
+    const { client, rpc } = mockSupabase(null);
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await liberarAlPool(INITIAL, formData({ tasacionId: 'tas-1' }));
+
+    expect(rpc).toHaveBeenCalledWith('liberar_al_pool', { p_tasacion_id: 'tas-1' });
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/dashboard/tasaciones/tas-1');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/dashboard/tasaciones');
+    expect(res.ok).toMatch(/pool/);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('traduce el error de la RPC (no liberable, 22023)', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaAdmin());
+    const { client } = mockSupabase({ code: '22023', message: 'no está pendiente' });
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await liberarAlPool(INITIAL, formData({ tasacionId: 'tas-1' }));
+
+    expect(res.errorTitulo).toBe('Datos inválidos');
+    expect(res.error).toBeDefined();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe('reasignarTasador (TSK-120)', () => {
+  it('rechaza si falta el id de tasación', async () => {
+    const res = await reasignarTasador(INITIAL, formData({ tasadorId: 't-2' }));
+    expect(res).toEqual({ error: 'Tasación inválida.' });
+    expect(mockGetMembresia).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si no se eligió el nuevo tasador', async () => {
+    const res = await reasignarTasador(INITIAL, formData({ tasacionId: 'tas-1' }));
+    expect(res.error).toMatch(/nuevo tasador/);
+  });
+
+  it('rechaza si el rol no es admin', async () => {
+    mockGetMembresia.mockResolvedValue({ entidad_id: 'ent-1', roles: ['tasador'] } as never);
+    const res = await reasignarTasador(
+      INITIAL,
+      formData({ tasacionId: 'tas-1', tasadorId: 't-2' }),
+    );
+    expect(res.error).toMatch(/administrador/);
+  });
+
+  it('happy path con motivo: reasigna, pasa params, revalida y devuelve ok', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaAdmin());
+    const { client, rpc } = mockSupabase(null);
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await reasignarTasador(
+      INITIAL,
+      formData({ tasacionId: 'tas-1', tasadorId: 't-2', motivo: 'no puede seguir' }),
+    );
+
+    expect(rpc).toHaveBeenCalledWith('reasignar_tasacion', {
+      p_tasacion_id: 'tas-1',
+      p_nuevo_tasador_id: 't-2',
+      p_motivo: 'no puede seguir',
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/dashboard/tasaciones/tas-1');
+    expect(res.ok).toMatch(/reasignada/);
+  });
+
+  it('sin motivo: envía p_motivo null', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaAdmin());
+    const { client, rpc } = mockSupabase(null);
+    mockCreateClient.mockResolvedValue(client);
+
+    await reasignarTasador(
+      INITIAL,
+      formData({ tasacionId: 'tas-1', tasadorId: 't-2' }),
+    );
+
+    expect(rpc).toHaveBeenCalledWith('reasignar_tasacion', {
+      p_tasacion_id: 'tas-1',
+      p_nuevo_tasador_id: 't-2',
+      p_motivo: null,
+    });
+  });
+
+  it('traduce el error de especialidad de la RPC (check 23514)', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaAdmin());
+    const { client } = mockSupabase({ code: '23514', message: 'sin especialidad' });
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await reasignarTasador(
+      INITIAL,
+      formData({ tasacionId: 'tas-1', tasadorId: 't-2' }),
+    );
+
+    expect(res.errorTitulo).toBe('Datos inválidos');
+    expect(res.error).not.toContain('sin especialidad');
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 });

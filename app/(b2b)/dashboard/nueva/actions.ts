@@ -15,7 +15,7 @@ export type CrearTasacionState = {
 };
 
 const TIPOS_VALIDOS: TipoInmueble[] = [
-  'casa', 'depto', 'terreno', 'galpon', 'local', 'oficina',
+  'casa', 'depto', 'terreno', 'galpon', 'local', 'oficina', 'finca',
 ];
 const MOTIVOS_VALIDOS: MotivoTasacion[] = [
   'venta', 'alquiler', 'asesoramiento_particulares', 'empresas',

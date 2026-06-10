@@ -6,6 +6,10 @@ import { fetchFotosTasacion } from '@/lib/queries/fotos';
 import { formatMoney } from '@/lib/format';
 import AsignarTasadorForm, { type TasadorOption } from './AsignarTasadorForm';
 import {
+  LiberarAlPoolForm,
+  ReasignarTasadorForm,
+} from './AccionesAsignacionForm';
+import {
   estadoLabels,
   estadoStyles,
   tipoLabels,
@@ -116,19 +120,45 @@ export default async function TasacionDetallePage({ params }: PageProps) {
   // tasadores del dropdown salen de listar_miembros_entidad (admin-gated).
   const membresia = await getMembresiaActiva();
   const esAdminEntidad = membresia?.roles.includes('admin') ?? false;
-  const puedeAsignar =
+
+  // Una solicitud pendiente sin asignar admite dos caminos del admin: asignar a
+  // mano (TSK-91) o liberar al pool (TSK-119, solo si todavía no está tomable —
+  // la modalidad 'pool' la marca tomable al nacer, ahí no tiene sentido el botón).
+  const pendienteSinAsignar =
     esAdminEntidad &&
     entidadId != null &&
     tasacion.estado === 'pendiente' &&
     tasacion.tasador_id == null;
+  const puedeAsignar = pendienteSinAsignar;
+  // `tomable` (TSK-107) todavía no está en `types/database.ts` regenerado en este
+  // worktree; lo leemos con un cast puntual hasta el próximo gen:types.
+  const tasacionTomable = (tasacion as { tomable?: boolean }).tomable === true;
+  const puedeLiberar = pendienteSinAsignar && !tasacionTomable;
 
-  const tasadoresEntidad: TasadorOption[] = puedeAsignar
+  // TSK-120/RF-027: la reasignación solo aplica a tasaciones EN PROCESO con un
+  // tasador ya asignado (la RPC rechaza otros estados). Es un camino distinto al
+  // de asignar/liberar (esos son sobre pendientes).
+  const puedeReasignar =
+    esAdminEntidad &&
+    entidadId != null &&
+    tasacion.estado === 'en_proceso' &&
+    tasacion.tasador_id != null;
+
+  // El dropdown de tasadores se necesita tanto para asignar como para reasignar.
+  // listar_miembros_entidad NO expone la especialidad (BR-039), así que mostramos
+  // todos los tasadores de la entidad y dejamos que la RPC rechace por
+  // especialidad (errcode 23514, traducido por la action) — TSK-119.
+  const necesitaTasadores = puedeAsignar || puedeReasignar;
+  const tasadoresEntidad: TasadorOption[] = necesitaTasadores
     ? await (async () => {
         const { data } = await supabase.rpc('listar_miembros_entidad', {
           _entidad: entidadId as string,
         });
         return (data ?? [])
           .filter((m) => (m.roles as string[]).includes('tasador'))
+          // En reasignación excluimos al tasador actual del dropdown (la RPC
+          // igual rechaza "mismo tasador", pero no tiene sentido ofrecerlo).
+          .filter((m) => m.user_id !== tasacion.tasador_id)
           .map((m) => ({
             userId: m.user_id,
             nombre:
@@ -256,6 +286,10 @@ export default async function TasacionDetallePage({ params }: PageProps) {
               </dd>
               {puedeAsignar && (
                 <AsignarTasadorForm tasacionId={id} tasadores={tasadoresEntidad} />
+              )}
+              {puedeLiberar && <LiberarAlPoolForm tasacionId={id} />}
+              {puedeReasignar && (
+                <ReasignarTasadorForm tasacionId={id} tasadores={tasadoresEntidad} />
               )}
             </div>
             <Field

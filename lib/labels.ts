@@ -69,6 +69,7 @@ export const tipoLabels: Record<TipoInmueble, string> = {
   galpon:  'Galpón',
   local:   'Local',
   oficina: 'Oficina',
+  finca:   'Finca',
 };
 
 export const motivoLabels: Record<MotivoTasacion, string> = {
@@ -96,4 +97,5 @@ export const TIPOS_SIN_AMBIENTES: ReadonlySet<TipoInmueble> = new Set<TipoInmueb
   'local',
   'oficina',
   'galpon',
+  'finca',
 ]);

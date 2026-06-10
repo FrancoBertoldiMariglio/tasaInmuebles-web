@@ -672,6 +672,7 @@ export type Database = {
         | "galpon"
         | "local"
         | "oficina"
+        | "finca"
       tipo_tasacion: "venta" | "alquiler" | "ambos"
     }
     CompositeTypes: {
@@ -824,7 +825,7 @@ export const Constants = {
         "otro",
         "unipersonal",
       ],
-      tipo_inmueble: ["casa", "depto", "terreno", "galpon", "local", "oficina"],
+      tipo_inmueble: ["casa", "depto", "terreno", "galpon", "local", "oficina", "finca"],
       tipo_tasacion: ["venta", "alquiler", "ambos"],
     },
   },

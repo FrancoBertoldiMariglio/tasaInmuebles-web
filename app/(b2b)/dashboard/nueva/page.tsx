@@ -2,15 +2,14 @@
 
 import { useActionState } from 'react';
 import { crearTasacion, type CrearTasacionState } from './actions';
+import { tipoLabels, type TipoInmueble } from '@/lib/labels';
 
-const TIPOS = [
-  { value: 'depto',   label: 'Departamento' },
-  { value: 'casa',    label: 'Casa' },
-  { value: 'terreno', label: 'Terreno' },
-  { value: 'galpon',  label: 'Galpón' },
-  { value: 'local',   label: 'Local comercial' },
-  { value: 'oficina', label: 'Oficina' },
-] as const;
+// Derivamos las opciones del catálogo canónico `tipoLabels` (lib/labels) para
+// que cualquier alta de tipo en el enum (ej. Q-18 'finca') aparezca sin tocar
+// este componente. El orden lo fija el orden de claves del Record.
+const TIPOS: ReadonlyArray<{ value: TipoInmueble; label: string }> = (
+  Object.entries(tipoLabels) as [TipoInmueble, string][]
+).map(([value, label]) => ({ value, label }));
 
 const MOTIVOS = [
   { value: 'venta',                       label: 'Venta' },
