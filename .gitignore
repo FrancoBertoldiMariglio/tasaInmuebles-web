@@ -8,3 +8,6 @@ next-env.d.ts
 
 # tests
 /coverage
+
+# Supabase CLI local state
+supabase/.temp/
