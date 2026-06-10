@@ -5,6 +5,7 @@ export type Json =
   | null
   | { [key: string]: Json | undefined }
   | Json[]
+
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -37,7 +38,10 @@ export type Database = {
       comite_propuestas: {
         Row: {
           created_at: string
+          firmado_en: string | null
+          firmado_por: string | null
           id: string
+          nota_justificativa: string | null
           notas: string | null
           tasacion_id: string
           tasador_id: string
@@ -46,7 +50,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          firmado_en?: string | null
+          firmado_por?: string | null
           id?: string
+          nota_justificativa?: string | null
           notas?: string | null
           tasacion_id: string
           tasador_id: string
@@ -55,7 +62,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          firmado_en?: string | null
+          firmado_por?: string | null
           id?: string
+          nota_justificativa?: string | null
           notas?: string | null
           tasacion_id?: string
           tasador_id?: string
@@ -63,6 +73,13 @@ export type Database = {
           valor_usd?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "comite_propuestas_firmado_por_fkey"
+            columns: ["firmado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "comite_propuestas_tasacion_id_fkey"
             columns: ["tasacion_id"]
@@ -84,18 +101,21 @@ export type Database = {
           created_at: string
           entidad_id: string
           roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           entidad_id: string
           roles: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           entidad_id?: string
           roles?: Database["public"]["Enums"]["rol_entidad_miembro"][]
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
@@ -119,7 +139,9 @@ export type Database = {
         Row: {
           created_at: string
           cuit: string | null
+          exigir_especialidad: boolean
           id: string
+          modalidad_asignacion: Database["public"]["Enums"]["modalidad_asignacion"]
           nombre: string
           tipo: Database["public"]["Enums"]["tipo_entidad"]
           updated_at: string
@@ -127,7 +149,9 @@ export type Database = {
         Insert: {
           created_at?: string
           cuit?: string | null
+          exigir_especialidad?: boolean
           id?: string
+          modalidad_asignacion?: Database["public"]["Enums"]["modalidad_asignacion"]
           nombre: string
           tipo: Database["public"]["Enums"]["tipo_entidad"]
           updated_at?: string
@@ -135,7 +159,9 @@ export type Database = {
         Update: {
           created_at?: string
           cuit?: string | null
+          exigir_especialidad?: boolean
           id?: string
+          modalidad_asignacion?: Database["public"]["Enums"]["modalidad_asignacion"]
           nombre?: string
           tipo?: Database["public"]["Enums"]["tipo_entidad"]
           updated_at?: string
@@ -146,10 +172,17 @@ export type Database = {
         Row: {
           acepto_terminos_at: string | null
           apellido: string | null
+          cargo: string | null
+          colegio: string | null
           created_at: string
+          dedicacion: string | null
           email: string
+          estado_aprobacion: Database["public"]["Enums"]["estado_aprobacion_tasador"]
+          estado_cuota: Database["public"]["Enums"]["estado_cuota_tasador"]
+          experiencia_previa: string | null
           id: string
           matricula: string | null
+          matricula_numero: string | null
           nombre: string | null
           rol: Database["public"]["Enums"]["rol_usuario"]
           telefono: string | null
@@ -158,10 +191,17 @@ export type Database = {
         Insert: {
           acepto_terminos_at?: string | null
           apellido?: string | null
+          cargo?: string | null
+          colegio?: string | null
           created_at?: string
+          dedicacion?: string | null
           email: string
+          estado_aprobacion?: Database["public"]["Enums"]["estado_aprobacion_tasador"]
+          estado_cuota?: Database["public"]["Enums"]["estado_cuota_tasador"]
+          experiencia_previa?: string | null
           id: string
           matricula?: string | null
+          matricula_numero?: string | null
           nombre?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           telefono?: string | null
@@ -170,10 +210,17 @@ export type Database = {
         Update: {
           acepto_terminos_at?: string | null
           apellido?: string | null
+          cargo?: string | null
+          colegio?: string | null
           created_at?: string
+          dedicacion?: string | null
           email?: string
+          estado_aprobacion?: Database["public"]["Enums"]["estado_aprobacion_tasador"]
+          estado_cuota?: Database["public"]["Enums"]["estado_cuota_tasador"]
+          experiencia_previa?: string | null
           id?: string
           matricula?: string | null
+          matricula_numero?: string | null
           nombre?: string | null
           rol?: Database["public"]["Enums"]["rol_usuario"]
           telefono?: string | null
@@ -210,6 +257,65 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      tasacion_asignacion_log: {
+        Row: {
+          created_at: string
+          id: string
+          motivo: string | null
+          reasignado_por: string
+          tasacion_id: string
+          tasador_anterior: string | null
+          tasador_nuevo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          reasignado_por: string
+          tasacion_id: string
+          tasador_anterior?: string | null
+          tasador_nuevo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          motivo?: string | null
+          reasignado_por?: string
+          tasacion_id?: string
+          tasador_anterior?: string | null
+          tasador_nuevo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasacion_asignacion_log_reasignado_por_fkey"
+            columns: ["reasignado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasacion_asignacion_log_tasacion_id_fkey"
+            columns: ["tasacion_id"]
+            isOneToOne: false
+            referencedRelation: "tasaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasacion_asignacion_log_tasador_anterior_fkey"
+            columns: ["tasador_anterior"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasacion_asignacion_log_tasador_nuevo_fkey"
+            columns: ["tasador_nuevo"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasacion_fotos: {
         Row: {
@@ -287,6 +393,7 @@ export type Database = {
           tasador_id: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
           tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
           updated_at: string
           valor_ars: number | null
           valor_fitt_servini_ars: number | null
@@ -334,6 +441,7 @@ export type Database = {
           tasador_id?: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
           tipo_tasacion?: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable?: boolean
           updated_at?: string
           valor_ars?: number | null
           valor_fitt_servini_ars?: number | null
@@ -381,6 +489,7 @@ export type Database = {
           tasador_id?: string | null
           tipo?: Database["public"]["Enums"]["tipo_inmueble"]
           tipo_tasacion?: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable?: boolean
           updated_at?: string
           valor_ars?: number | null
           valor_fitt_servini_ars?: number | null
@@ -426,11 +535,41 @@ export type Database = {
           },
         ]
       }
+      tasador_especialidades: {
+        Row: {
+          created_at: string
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          tipo?: Database["public"]["Enums"]["tipo_inmueble"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasador_especialidades_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      _es_tasador_de_tasacion: {
+        Args: { _tasacion_id: string }
+        Returns: boolean
+      }
       actualizar_roles_miembro: {
         Args: {
           _entidad: string
@@ -489,6 +628,7 @@ export type Database = {
           tasador_id: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
           tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
           updated_at: string
           valor_ars: number | null
           valor_fitt_servini_ars: number | null
@@ -515,6 +655,68 @@ export type Database = {
       can_read_tasacion: { Args: { _tasacion_id: string }; Returns: boolean }
       can_write_informe: { Args: { _tasacion_id: string }; Returns: boolean }
       can_write_tasacion: { Args: { _tasacion_id: string }; Returns: boolean }
+      cerrar_valor_comite: {
+        Args: {
+          _nota: string
+          _tasacion_id: string
+          _valor_ars: number
+          _valor_usd: number
+        }
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       crear_tasacion_profesional: {
         Args: {
           p_amenities: string[]
@@ -546,6 +748,63 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["rol_usuario"]
       }
+      liberar_al_pool: {
+        Args: { p_tasacion_id: string }
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       listar_miembros_entidad: {
         Args: { _entidad: string }
         Returns: {
@@ -572,6 +831,67 @@ export type Database = {
       quitar_miembro_entidad: {
         Args: { _entidad: string; _user: string }
         Returns: undefined
+      }
+      reasignar_tasacion: {
+        Args: {
+          p_motivo?: string
+          p_nuevo_tasador_id: string
+          p_tasacion_id: string
+        }
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reclamar_tasacion: {
         Args: { p_tasacion_id: string }
@@ -615,6 +935,64 @@ export type Database = {
           tasador_id: string | null
           tipo: Database["public"]["Enums"]["tipo_inmueble"]
           tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      revelar_planning_poker: {
+        Args: { _tasacion_id: string }
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
           updated_at: string
           valor_ars: number | null
           valor_fitt_servini_ars: number | null
@@ -639,6 +1017,70 @@ export type Database = {
         Args: { _name: string }
         Returns: string
       }
+      tasaciones_pool: {
+        Args: never
+        Returns: {
+          amenities: string[] | null
+          antiguedad_anios: number | null
+          banios: number | null
+          cierre_at: string | null
+          cierre_metodo: string | null
+          cierre_motivo: string | null
+          cliente_b2c_id: string | null
+          comite_revelado_at: string | null
+          completada_at: string | null
+          creado_por: string | null
+          created_at: string
+          descripcion: string | null
+          domicilio: string | null
+          dormitorios: number | null
+          entidad_id: string | null
+          enviado_a_comite_at: string | null
+          es_referencial: boolean
+          estado: Database["public"]["Enums"]["estado_tasacion"]
+          estado_conservacion:
+            | Database["public"]["Enums"]["estado_conservacion"]
+            | null
+          id: string
+          inspeccion_ocular_completada_at: string | null
+          lat: number | null
+          lng: number | null
+          motivo: Database["public"]["Enums"]["motivo_tasacion"]
+          numero: number
+          numero_busqueda: string | null
+          padron_inmobiliario: string | null
+          pdf_compartido_at: string | null
+          pdf_generado_at: string | null
+          pdf_url: string | null
+          solicitante_id: string | null
+          sup_cubierta: number | null
+          sup_total: number | null
+          tasador_asignado_at: string | null
+          tasador_id: string | null
+          tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          tipo_tasacion: Database["public"]["Enums"]["tipo_tasacion"]
+          tomable: boolean
+          updated_at: string
+          valor_ars: number | null
+          valor_fitt_servini_ars: number | null
+          valor_robotomus_ars: number | null
+          valor_usd: number | null
+          visita_programada_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tasaciones"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      tasador_tiene_especialidad: {
+        Args: {
+          _tipo: Database["public"]["Enums"]["tipo_inmueble"]
+          _uid: string
+        }
+        Returns: boolean
+      }
       tasadores_de_entidad: {
         Args: { _entidad: string }
         Returns: {
@@ -659,8 +1101,15 @@ export type Database = {
       }
     }
     Enums: {
+      estado_aprobacion_tasador:
+        | "pendiente"
+        | "aprobado"
+        | "rechazado"
+        | "suspendido"
       estado_conservacion: "muy_bueno" | "bueno" | "regular" | "a_reciclar"
+      estado_cuota_tasador: "al_dia" | "vencida" | "exenta" | "desconocido"
       estado_tasacion: "pendiente" | "en_proceso" | "en_comite" | "completada"
+      modalidad_asignacion: "manual" | "pool"
       motivo_tasacion:
         | "venta"
         | "alquiler"
@@ -701,8 +1150,11 @@ export type Database = {
     }
   }
 }
+
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
@@ -731,6 +1183,7 @@ export type Tables<
       ? R
       : never
     : never
+
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
@@ -755,6 +1208,7 @@ export type TablesInsert<
       ? I
       : never
     : never
+
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
@@ -779,6 +1233,7 @@ export type TablesUpdate<
       ? U
       : never
     : never
+
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
@@ -795,6 +1250,7 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
+
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
@@ -811,11 +1267,20 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
 export const Constants = {
   public: {
     Enums: {
+      estado_aprobacion_tasador: [
+        "pendiente",
+        "aprobado",
+        "rechazado",
+        "suspendido",
+      ],
       estado_conservacion: ["muy_bueno", "bueno", "regular", "a_reciclar"],
+      estado_cuota_tasador: ["al_dia", "vencida", "exenta", "desconocido"],
       estado_tasacion: ["pendiente", "en_proceso", "en_comite", "completada"],
+      modalidad_asignacion: ["manual", "pool"],
       motivo_tasacion: [
         "venta",
         "alquiler",

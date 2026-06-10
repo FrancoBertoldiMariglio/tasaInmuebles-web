@@ -15,17 +15,6 @@ export type AsignarTasadorState = {
 };
 
 /**
- * Puente de tipos para RPCs nuevas (TSK-119 liberar_al_pool, TSK-120
- * reasignar_tasacion). Las migraciones backend del 2026-06-10 agregaron estas
- * funciones, pero `types/database.ts` todavía no se regeneró (`pnpm gen:types`)
- * en este worktree, así que el overload tipado de `.rpc` no las conoce. En vez
- * de aflojar el tipado de todo el cliente, casteamos SOLO la firma de `.rpc` a
- * una versión laxa para estas llamadas puntuales. Cuando se regeneren los tipos,
- * este cast se puede borrar sin tocar la lógica.
- */
-type RpcLaxo = (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>;
-
-/**
  * TSK-91 / BR-026: el admin de la entidad asigna un tasador a una solicitud B2B
  * pendiente. El enforce real (admin de entidad, tasador de la misma entidad,
  * claim atómico) vive en la RPC SECURITY DEFINER asignar_tasador_a_tasacion;
@@ -104,8 +93,7 @@ export async function liberarAlPool(
   if (gate) return gate;
 
   const supabase = await createClient();
-  const rpc = supabase.rpc.bind(supabase) as unknown as RpcLaxo;
-  const { error } = await rpc('liberar_al_pool', {
+  const { error } = await supabase.rpc('liberar_al_pool', {
     p_tasacion_id: tasacionId,
   });
 
@@ -142,13 +130,12 @@ export async function reasignarTasador(
   if (gate) return gate;
 
   const supabase = await createClient();
-  const rpc = supabase.rpc.bind(supabase) as unknown as RpcLaxo;
-  const { error } = await rpc('reasignar_tasacion', {
+  // Motivo opcional: lo omitimos cuando viene vacío (la RPC lo defaultea a null
+  // → no persiste '' en el audit trail tasacion_asignacion_log.motivo).
+  const { error } = await supabase.rpc('reasignar_tasacion', {
     p_tasacion_id: tasacionId,
     p_nuevo_tasador_id: nuevoTasadorId,
-    // Motivo opcional: enviamos null cuando viene vacío para no persistir '' en
-    // el audit trail (tasacion_asignacion_log.motivo es nullable).
-    p_motivo: motivo.length > 0 ? motivo : null,
+    ...(motivo.length > 0 ? { p_motivo: motivo } : {}),
   });
 
   if (error) {
@@ -185,11 +172,7 @@ async function gateComite(): Promise<AsignarTasadorState | null> {
  * el reveal iba por UPDATE directo a `tasaciones` (la policy del solicitante lo
  * permitía indebidamente); ahora va por la RPC SECURITY DEFINER que valida rol
  * tasador/admin. La RPC recibe un único param `_tasacion_id`.
- *
- * TODO(deploy): depende del batch backend 2026-06-10 (migración
- * 20260610100500_sup04_rpcs_revelar_cerrar_comite.sql) todavía NO aplicado al
- * remoto, y de la decisión de UX DP-010 (modelo DS-12 sin VC, ya decidida).
- * El RPC tampoco está en `types/database.ts` regenerado → cast `RpcLaxo`.
+ * Backend desplegado (batch 2026-06-10, migración sup04) y UX DP-010 (DS-12 sin VC).
  */
 export async function revelarPlanningPoker(
   _prev: AsignarTasadorState,
@@ -202,8 +185,7 @@ export async function revelarPlanningPoker(
   if (gate) return gate;
 
   const supabase = await createClient();
-  const rpc = supabase.rpc.bind(supabase) as unknown as RpcLaxo;
-  const { error } = await rpc('revelar_planning_poker', {
+  const { error } = await supabase.rpc('revelar_planning_poker', {
     _tasacion_id: tasacionId,
   });
 
@@ -224,11 +206,7 @@ export async function revelarPlanningPoker(
  * cuando el valor de cierre diverge del rango [min,max] de las propuestas
  * (BR-038). La firma de la propuesta del tasador que cierra la hace la RPC
  * internamente (RG-009). Mandamos `null` cuando un valor o la nota vienen vacíos.
- *
- * TODO(deploy): depende del batch backend 2026-06-10 (migraciones
- * 20260610100500 + 20260610110300_tsk110_nota_firma_comite.sql) todavía NO
- * aplicadas al remoto, y de DP-010 (modelo DS-12 sin VC, ya decidida). El RPC
- * no está en `types/database.ts` regenerado → cast `RpcLaxo`.
+ * Backend desplegado (batch 2026-06-10, migraciones sup04 + tsk110) y DP-010.
  */
 export async function cerrarValorComite(
   _prev: AsignarTasadorState,
@@ -251,15 +229,18 @@ export async function cerrarValorComite(
   if (gate) return gate;
 
   const supabase = await createClient();
-  const rpc = supabase.rpc.bind(supabase) as unknown as RpcLaxo;
-  const { error } = await rpc('cerrar_valor_comite', {
+  // La RPC acepta null en _valor_ars/_valor_usd/_nota (coalesce + BR-038), y la
+  // moneda ausente DEBE ir null —no 0— porque la constraint sup05 exige valor>0.
+  // Pero el generador de tipos marca los params sin DEFAULT como requeridos
+  // no-nullables, así que tipamos solo estos args como nullables.
+  const { error } = await supabase.rpc('cerrar_valor_comite', {
     _tasacion_id: tasacionId,
     _valor_ars: valorArs,
     _valor_usd: valorUsd,
     // Nota opcional a nivel API: la RPC la vuelve obligatoria (BR-038) solo si
     // el valor diverge del rango. '' → null para no persistir vacío.
     _nota: nota.length > 0 ? nota : null,
-  });
+  } as { _tasacion_id: string; _valor_ars: number; _valor_usd: number; _nota: string });
 
   if (error) {
     const { titulo, mensaje } = traducirError(error);

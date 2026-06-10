@@ -32,23 +32,6 @@ type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-/**
- * Fila de comite_propuestas tal como la usa el detalle. Incluye nota_justificativa
- * y firmado_en (TSK-110/BR-038), que aún no están en `types/database.ts`; por eso
- * el select de comité usa un cast laxo y proyecta a este shape explícito.
- * TODO(deploy): reemplazar por el tipo generado tras aplicar batch + gen:types.
- */
-type PropuestaComiteRow = {
-  id: string;
-  valor_ars: number | null;
-  valor_usd: number | null;
-  notas: string | null;
-  nota_justificativa: string | null;
-  firmado_en: string | null;
-  created_at: string;
-  tasador: { nombre: string | null; apellido: string | null; matricula: string | null } | null;
-};
-
 const cierreMetodoLabels: Record<string, string> = {
   fitt_servini: 'Valor técnico (Fitt-Servini)',
   override: 'Override manual',
@@ -108,24 +91,9 @@ export default async function TasacionDetallePage({ params }: PageProps) {
   const [fotos, { data: propuestasRaw }, tasador] = await Promise.all([
     fetchFotosTasacion(id).catch(() => []),
     // nota_justificativa + firmado_en (TSK-110/BR-038) alimentan la trazabilidad
-    // (TSK-122). Esas columnas existen en el backend del batch 2026-06-10 pero
-    // todavía no están en `types/database.ts` regenerado: si se las pone en el
-    // select tipado, el helper de tipos de supabase-js envenena TODA la fila a un
-    // SelectQueryError. Para evitarlo casteamos el query builder a una versión
-    // laxa SOLO para este select y proyectamos a un shape explícito.
-    // TODO(deploy): borrar el cast tras aplicar batch backend 2026-06-10 + gen:types.
-    (
-      supabase.from('comite_propuestas') as unknown as {
-        select: (cols: string) => {
-          eq: (c: string, v: string) => {
-            order: (
-              c: string,
-              o: { ascending: boolean },
-            ) => Promise<{ data: PropuestaComiteRow[] | null }>;
-          };
-        };
-      }
-    )
+    // (TSK-122). Select tipado contra `comite_propuestas`.
+    supabase
+      .from('comite_propuestas')
       .select(
         `id, valor_ars, valor_usd, notas, nota_justificativa, firmado_en, created_at,
          tasador:profiles!comite_propuestas_tasador_id_fkey(nombre, apellido, matricula)`,

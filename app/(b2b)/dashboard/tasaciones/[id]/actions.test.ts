@@ -219,7 +219,7 @@ describe('reasignarTasador (TSK-120)', () => {
     expect(res.ok).toMatch(/reasignada/);
   });
 
-  it('sin motivo: envía p_motivo null', async () => {
+  it('sin motivo: omite p_motivo (la RPC lo defaultea a null)', async () => {
     mockGetMembresia.mockResolvedValue(membresiaAdmin());
     const { client, rpc } = mockSupabase(null);
     mockCreateClient.mockResolvedValue(client);
@@ -232,7 +232,6 @@ describe('reasignarTasador (TSK-120)', () => {
     expect(rpc).toHaveBeenCalledWith('reasignar_tasacion', {
       p_tasacion_id: 'tas-1',
       p_nuevo_tasador_id: 't-2',
-      p_motivo: null,
     });
   });
 

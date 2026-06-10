@@ -35,22 +35,6 @@ type MiembroRow =
 
 type EspecialidadRow = { user_id: string; tipo: TipoInmueble };
 
-// Vista mínima del client para leer `tasador_especialidades` mientras esa tabla
-// no esté en los tipos generados (ver NOTA abajo).
-type EspecialidadQuerier = {
-  from: (tabla: string) => {
-    select: (cols: string) => {
-      in: (
-        col: string,
-        vals: string[],
-      ) => Promise<{
-        data: EspecialidadRow[] | null;
-        error: { message: string } | null;
-      }>;
-    };
-  };
-};
-
 export class TasadoresQueryError extends Error {
   constructor(message: string) {
     super(message);
@@ -87,15 +71,9 @@ export async function listarTasadoresDeEntidad(
 
   const userIds = tasadores.map((m) => m.user_id);
 
-  // NOTA: `tasador_especialidades` (TSK-108) aún no está en `types/database.ts`
-  // generado (los tipos se regeneran en el repo backend). Hasta entonces, la
-  // consulta a esa tabla se hace sobre un client desestrechado (`EspecialidadQuerier`)
-  // y el resultado se tipa a mano con `EspecialidadRow`. La RLS
-  // `tasador_especialidades_read` autoriza al admin de la entidad a leer las
-  // filas de sus miembros.
-  const { data: especialidades, error: errEsp } = await (
-    supabase as unknown as EspecialidadQuerier
-  )
+  // `tasador_especialidades` (TSK-108): la RLS `tasador_especialidades_read`
+  // autoriza al admin de la entidad a leer las filas de sus miembros.
+  const { data: especialidades, error: errEsp } = await supabase
     .from('tasador_especialidades')
     .select('user_id, tipo')
     .in('user_id', userIds);
