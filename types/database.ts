@@ -5,7 +5,6 @@ export type Json =
   | null
   | { [key: string]: Json | undefined }
   | Json[]
-
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -14,6 +13,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      amenities_catalogo: {
+        Row: {
+          activo: boolean
+          codigo: string
+          label: string
+          orden: number
+        }
+        Insert: {
+          activo?: boolean
+          codigo: string
+          label: string
+          orden?: number
+        }
+        Update: {
+          activo?: boolean
+          codigo?: string
+          label?: string
+          orden?: number
+        }
+        Relationships: []
+      }
       comite_propuestas: {
         Row: {
           created_at: string
@@ -544,6 +564,7 @@ export type Database = {
         Returns: string
       }
       marcar_pdf_compartido: { Args: { _tasacion_id: string }; Returns: string }
+      normalize_amenity: { Args: { p: string }; Returns: string }
       programar_visita: {
         Args: { _cuando?: string; _tasacion_id: string }
         Returns: string
@@ -680,11 +701,8 @@ export type Database = {
     }
   }
 }
-
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
@@ -713,7 +731,6 @@ export type Tables<
       ? R
       : never
     : never
-
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
@@ -738,7 +755,6 @@ export type TablesInsert<
       ? I
       : never
     : never
-
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
@@ -763,7 +779,6 @@ export type TablesUpdate<
       ? U
       : never
     : never
-
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
@@ -780,7 +795,6 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
-
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
@@ -797,7 +811,6 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
-
 export const Constants = {
   public: {
     Enums: {
@@ -825,7 +838,15 @@ export const Constants = {
         "otro",
         "unipersonal",
       ],
-      tipo_inmueble: ["casa", "depto", "terreno", "galpon", "local", "oficina", "finca"],
+      tipo_inmueble: [
+        "casa",
+        "depto",
+        "terreno",
+        "galpon",
+        "local",
+        "oficina",
+        "finca",
+      ],
       tipo_tasacion: ["venta", "alquiler", "ambos"],
     },
   },
