@@ -6,8 +6,12 @@ import {
   asignarTasador,
   liberarAlPool,
   reasignarTasador,
+  revelarPlanningPoker,
+  cerrarValorComite,
   type AsignarTasadorState,
 } from './actions';
+import { parseMonto } from './montos';
+import { construirTrazabilidad } from './TrazabilidadValor';
 
 // Mockeamos el cliente de Supabase, la membresía activa y revalidatePath para
 // aislar la server action de la red/cache y testear su lógica de gating + la
@@ -245,5 +249,228 @@ describe('reasignarTasador (TSK-120)', () => {
     expect(res.errorTitulo).toBe('Datos inválidos');
     expect(res.error).not.toContain('sin especialidad');
     expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+/** Membresía de un tasador del comité (rol tasador, no admin). */
+function membresiaTasador() {
+  return { entidad_id: 'ent-1', roles: ['tasador'] } as never;
+}
+
+describe('revelarPlanningPoker (TSK-171/SUP-04)', () => {
+  it('rechaza si falta el id de tasación', async () => {
+    const res = await revelarPlanningPoker(INITIAL, formData({}));
+    expect(res).toEqual({ error: 'Tasación inválida.' });
+    expect(mockGetMembresia).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si la cuenta no tiene membresía', async () => {
+    mockGetMembresia.mockResolvedValue(null);
+    const res = await revelarPlanningPoker(INITIAL, formData({ tasacionId: 'tas-1' }));
+    expect(res.error).toMatch(/no está vinculada/);
+  });
+
+  it('rechaza si el rol no es tasador ni admin (solicitante)', async () => {
+    mockGetMembresia.mockResolvedValue({ entidad_id: 'ent-1', roles: ['solicitante'] } as never);
+    const res = await revelarPlanningPoker(INITIAL, formData({ tasacionId: 'tas-1' }));
+    expect(res.error).toMatch(/tasador del comité o un administrador/);
+  });
+
+  it('happy path como tasador: llama la RPC con _tasacion_id, revalida y devuelve ok', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaTasador());
+    const { client, rpc } = mockSupabase(null);
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await revelarPlanningPoker(INITIAL, formData({ tasacionId: 'tas-1' }));
+
+    expect(rpc).toHaveBeenCalledWith('revelar_planning_poker', { _tasacion_id: 'tas-1' });
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/dashboard/tasaciones/tas-1');
+    expect(res.ok).toMatch(/revelado/);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('traduce el error de la RPC (no autorizado 42501)', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaTasador());
+    const { client } = mockSupabase({ code: '42501', message: 'permission denied' });
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await revelarPlanningPoker(INITIAL, formData({ tasacionId: 'tas-1' }));
+
+    expect(res.errorTitulo).toBe('Sin permiso');
+    expect(res.error).not.toContain('permission denied');
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe('cerrarValorComite (TSK-171/TSK-110/BR-038)', () => {
+  it('rechaza si falta el id de tasación', async () => {
+    const res = await cerrarValorComite(INITIAL, formData({}));
+    expect(res).toEqual({ error: 'Tasación inválida.' });
+    expect(mockGetMembresia).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si no hay ningún valor (ARS ni USD)', async () => {
+    const res = await cerrarValorComite(INITIAL, formData({ tasacionId: 'tas-1' }));
+    expect(res.error).toMatch(/valor de cierre en ARS o USD/);
+    expect(mockGetMembresia).not.toHaveBeenCalled();
+  });
+
+  it('rechaza si el rol no es tasador ni admin', async () => {
+    mockGetMembresia.mockResolvedValue({ entidad_id: 'ent-1', roles: ['solicitante'] } as never);
+    const res = await cerrarValorComite(
+      INITIAL,
+      formData({ tasacionId: 'tas-1', valorArs: '1000000' }),
+    );
+    expect(res.error).toMatch(/tasador del comité o un administrador/);
+  });
+
+  it('happy path con nota: parsea montos es-AR, manda los 4 params, revalida y devuelve ok', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaAdmin());
+    const { client, rpc } = mockSupabase(null);
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await cerrarValorComite(
+      INITIAL,
+      formData({
+        tasacionId: 'tas-1',
+        valorArs: '95.000.000',
+        valorUsd: '100000',
+        nota: 'Promedio del comité',
+      }),
+    );
+
+    expect(rpc).toHaveBeenCalledWith('cerrar_valor_comite', {
+      _tasacion_id: 'tas-1',
+      _valor_ars: 95000000,
+      _valor_usd: 100000,
+      _nota: 'Promedio del comité',
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/dashboard/tasaciones/tas-1');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/dashboard/tasaciones');
+    expect(res.ok).toMatch(/Completada/);
+  });
+
+  it('sin nota y solo USD: manda _valor_ars null y _nota null', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaTasador());
+    const { client, rpc } = mockSupabase(null);
+    mockCreateClient.mockResolvedValue(client);
+
+    await cerrarValorComite(INITIAL, formData({ tasacionId: 'tas-1', valorUsd: '120000' }));
+
+    expect(rpc).toHaveBeenCalledWith('cerrar_valor_comite', {
+      _tasacion_id: 'tas-1',
+      _valor_ars: null,
+      _valor_usd: 120000,
+      _nota: null,
+    });
+  });
+
+  it('traduce el error BR-038 de la RPC (nota obligatoria, check 23514)', async () => {
+    mockGetMembresia.mockResolvedValue(membresiaTasador());
+    const { client } = mockSupabase({ code: '23514', message: 'BR-038: nota obligatoria' });
+    mockCreateClient.mockResolvedValue(client);
+
+    const res = await cerrarValorComite(
+      INITIAL,
+      formData({ tasacionId: 'tas-1', valorArs: '500000000' }),
+    );
+
+    expect(res.errorTitulo).toBe('Datos inválidos');
+    expect(res.error).not.toContain('BR-038');
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe('parseMonto', () => {
+  it('devuelve null para vacío, null, no numérico y <= 0', () => {
+    expect(parseMonto(null)).toBeNull();
+    expect(parseMonto('')).toBeNull();
+    expect(parseMonto('  ')).toBeNull();
+    expect(parseMonto('abc')).toBeNull();
+    expect(parseMonto('0')).toBeNull();
+    expect(parseMonto('-5')).toBeNull();
+  });
+
+  it('parsea enteros y formato es-AR (puntos de miles, coma decimal)', () => {
+    expect(parseMonto('1000')).toBe(1000);
+    expect(parseMonto('95.000.000')).toBe(95000000);
+    expect(parseMonto('1.234,5')).toBe(1234.5);
+  });
+});
+
+describe('construirTrazabilidad (TSK-122/AC-016)', () => {
+  const base = {
+    valorFittServiniArs: null,
+    valorRobotomusArs: null,
+    valorFinalArs: null,
+    valorFinalUsd: null,
+    cierreAt: null,
+    propuestas: [],
+  };
+
+  it('mapea los 4 componentes y marca no-cerrado sin cierre_at', () => {
+    const m = construirTrazabilidad({
+      ...base,
+      valorFittServiniArs: 80000000,
+      valorRobotomusArs: 90000000,
+    });
+    expect(m.valorTecnicoArs).toBe(80000000);
+    expect(m.valorRobotomusArs).toBe(90000000);
+    expect(m.cerrado).toBe(false);
+    expect(m.propuestas).toEqual([]);
+  });
+
+  it('marca cerrado cuando hay cierre_at y proyecta el valor final', () => {
+    const m = construirTrazabilidad({
+      ...base,
+      cierreAt: '2026-06-10T00:00:00Z',
+      valorFinalArs: 95000000,
+      valorFinalUsd: 100000,
+    });
+    expect(m.cerrado).toBe(true);
+    expect(m.valorFinalArs).toBe(95000000);
+    expect(m.valorFinalUsd).toBe(100000);
+  });
+
+  it('proyecta propuestas: autor, prioriza nota_justificativa, detecta firma', () => {
+    const m = construirTrazabilidad({
+      ...base,
+      propuestas: [
+        {
+          id: 'p1',
+          valor_ars: 95000000,
+          valor_usd: 100000,
+          notas: 'nota libre',
+          nota_justificativa: 'justificación BR-038',
+          firmado_en: '2026-06-10T00:00:00Z',
+          tasador: { nombre: 'Ana', apellido: 'Pérez' },
+        },
+        {
+          id: 'p2',
+          valor_ars: null,
+          valor_usd: null,
+          notas: null,
+          nota_justificativa: null,
+          firmado_en: null,
+          tasador: null,
+        },
+      ],
+    });
+    expect(m.propuestas[0]).toEqual({
+      id: 'p1',
+      autor: 'Ana Pérez',
+      valorArs: 95000000,
+      valorUsd: 100000,
+      nota: 'justificación BR-038',
+      firmada: true,
+    });
+    expect(m.propuestas[1]).toEqual({
+      id: 'p2',
+      autor: 'Miembro del comité',
+      valorArs: null,
+      valorUsd: null,
+      nota: null,
+      firmada: false,
+    });
   });
 });

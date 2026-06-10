@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getMembresiaActiva } from '@/lib/entidad-activa';
 import { traducirError } from '@/lib/errors';
 import { revalidatePath } from 'next/cache';
+import { parseMonto } from './montos';
 
 export type AsignarTasadorState = {
   /** Mensaje de error ya traducido a español (listo para render). */
@@ -158,4 +159,114 @@ export async function reasignarTasador(
   revalidatePath(`/dashboard/tasaciones/${tasacionId}`);
   revalidatePath('/dashboard/tasaciones');
   return { ok: 'Tasación reasignada al nuevo tasador.' };
+}
+
+/**
+ * Gating compartido por las acciones de comité (revelar / cerrar). A diferencia
+ * de la asignación B2B (admin-only), el comité lo opera un tasador del comité o
+ * un admin (modelo DS-12 / DP-010, sin videoconferencia). El enforce duro vive
+ * en las RPCs SECURITY DEFINER `_es_tasador_de_tasacion`; acá gateamos temprano
+ * para feedback claro y evitar round-trips. Devuelve error de estado o `null`.
+ */
+async function gateComite(): Promise<AsignarTasadorState | null> {
+  const membresia = await getMembresiaActiva();
+  if (!membresia) {
+    return { error: 'Tu cuenta no está vinculada a ninguna organización.' };
+  }
+  if (!membresia.roles.includes('admin') && !membresia.roles.includes('tasador')) {
+    return { error: 'Solo un tasador del comité o un administrador puede operar el comité.' };
+  }
+  return null;
+}
+
+/**
+ * TSK-171 / SUP-04 / DS-12: revela el Planning Poker del comité (setea
+ * `comite_revelado_at` para que los miembros vean las propuestas ajenas). Antes
+ * el reveal iba por UPDATE directo a `tasaciones` (la policy del solicitante lo
+ * permitía indebidamente); ahora va por la RPC SECURITY DEFINER que valida rol
+ * tasador/admin. La RPC recibe un único param `_tasacion_id`.
+ *
+ * TODO(deploy): depende del batch backend 2026-06-10 (migración
+ * 20260610100500_sup04_rpcs_revelar_cerrar_comite.sql) todavía NO aplicado al
+ * remoto, y de la decisión de UX DP-010 (modelo DS-12 sin VC, ya decidida).
+ * El RPC tampoco está en `types/database.ts` regenerado → cast `RpcLaxo`.
+ */
+export async function revelarPlanningPoker(
+  _prev: AsignarTasadorState,
+  formData: FormData,
+): Promise<AsignarTasadorState> {
+  const tasacionId = String(formData.get('tasacionId') ?? '').trim();
+  if (!tasacionId) return { error: 'Tasación inválida.' };
+
+  const gate = await gateComite();
+  if (gate) return gate;
+
+  const supabase = await createClient();
+  const rpc = supabase.rpc.bind(supabase) as unknown as RpcLaxo;
+  const { error } = await rpc('revelar_planning_poker', {
+    _tasacion_id: tasacionId,
+  });
+
+  if (error) {
+    const { titulo, mensaje } = traducirError(error);
+    return { error: mensaje, errorTitulo: titulo };
+  }
+
+  revalidatePath(`/dashboard/tasaciones/${tasacionId}`);
+  return { ok: 'Planning Poker revelado. Las propuestas del comité ya son visibles.' };
+}
+
+/**
+ * TSK-171 / SUP-04 + TSK-110 / BR-038 / DS-12: cierra el valor del comité
+ * (define valor final ARS/USD + nota + firma → estado `completada`). La RPC
+ * `cerrar_valor_comite(_tasacion_id, _valor_ars, _valor_usd, _nota)` valida rol
+ * tasador/admin, exige al menos un valor > 0, y EXIGE la nota justificativa
+ * cuando el valor de cierre diverge del rango [min,max] de las propuestas
+ * (BR-038). La firma de la propuesta del tasador que cierra la hace la RPC
+ * internamente (RG-009). Mandamos `null` cuando un valor o la nota vienen vacíos.
+ *
+ * TODO(deploy): depende del batch backend 2026-06-10 (migraciones
+ * 20260610100500 + 20260610110300_tsk110_nota_firma_comite.sql) todavía NO
+ * aplicadas al remoto, y de DP-010 (modelo DS-12 sin VC, ya decidida). El RPC
+ * no está en `types/database.ts` regenerado → cast `RpcLaxo`.
+ */
+export async function cerrarValorComite(
+  _prev: AsignarTasadorState,
+  formData: FormData,
+): Promise<AsignarTasadorState> {
+  const tasacionId = String(formData.get('tasacionId') ?? '').trim();
+  if (!tasacionId) return { error: 'Tasación inválida.' };
+
+  // Los montos llegan como string desde el form; los parseamos a number y
+  // tratamos vacío/0/NaN como ausencia (la RPC exige al menos uno > 0).
+  const valorArs = parseMonto(formData.get('valorArs'));
+  const valorUsd = parseMonto(formData.get('valorUsd'));
+  if (valorArs == null && valorUsd == null) {
+    return { error: 'Ingresá un valor de cierre en ARS o USD.' };
+  }
+
+  const nota = String(formData.get('nota') ?? '').trim();
+
+  const gate = await gateComite();
+  if (gate) return gate;
+
+  const supabase = await createClient();
+  const rpc = supabase.rpc.bind(supabase) as unknown as RpcLaxo;
+  const { error } = await rpc('cerrar_valor_comite', {
+    _tasacion_id: tasacionId,
+    _valor_ars: valorArs,
+    _valor_usd: valorUsd,
+    // Nota opcional a nivel API: la RPC la vuelve obligatoria (BR-038) solo si
+    // el valor diverge del rango. '' → null para no persistir vacío.
+    _nota: nota.length > 0 ? nota : null,
+  });
+
+  if (error) {
+    const { titulo, mensaje } = traducirError(error);
+    return { error: mensaje, errorTitulo: titulo };
+  }
+
+  revalidatePath(`/dashboard/tasaciones/${tasacionId}`);
+  revalidatePath('/dashboard/tasaciones');
+  return { ok: 'Valor del comité cerrado. La tasación pasó a Completada.' };
 }

@@ -5,6 +5,10 @@ import { getEntidadActivaId, getMembresiaActiva } from '@/lib/entidad-activa';
 import { fetchFotosTasacion } from '@/lib/queries/fotos';
 import { formatMoney } from '@/lib/format';
 import AsignarTasadorForm, { type TasadorOption } from './AsignarTasadorForm';
+import TrazabilidadValor, {
+  construirTrazabilidad,
+  type TrazabilidadInput,
+} from './TrazabilidadValor';
 import {
   LiberarAlPoolForm,
   ReasignarTasadorForm,
@@ -26,6 +30,23 @@ import {
 
 type PageProps = {
   params: Promise<{ id: string }>;
+};
+
+/**
+ * Fila de comite_propuestas tal como la usa el detalle. Incluye nota_justificativa
+ * y firmado_en (TSK-110/BR-038), que aún no están en `types/database.ts`; por eso
+ * el select de comité usa un cast laxo y proyecta a este shape explícito.
+ * TODO(deploy): reemplazar por el tipo generado tras aplicar batch + gen:types.
+ */
+type PropuestaComiteRow = {
+  id: string;
+  valor_ars: number | null;
+  valor_usd: number | null;
+  notas: string | null;
+  nota_justificativa: string | null;
+  firmado_en: string | null;
+  created_at: string;
+  tasador: { nombre: string | null; apellido: string | null; matricula: string | null } | null;
 };
 
 const cierreMetodoLabels: Record<string, string> = {
@@ -86,12 +107,29 @@ export default async function TasacionDetallePage({ params }: PageProps) {
   // (tasador_id NULL, DS-22) → sin asignar.
   const [fotos, { data: propuestasRaw }, tasador] = await Promise.all([
     fetchFotosTasacion(id).catch(() => []),
-    supabase
-      .from('comite_propuestas')
-      .select(`
-        id, valor_ars, valor_usd, notas, created_at,
-        tasador:profiles!comite_propuestas_tasador_id_fkey(nombre, apellido, matricula)
-      `)
+    // nota_justificativa + firmado_en (TSK-110/BR-038) alimentan la trazabilidad
+    // (TSK-122). Esas columnas existen en el backend del batch 2026-06-10 pero
+    // todavía no están en `types/database.ts` regenerado: si se las pone en el
+    // select tipado, el helper de tipos de supabase-js envenena TODA la fila a un
+    // SelectQueryError. Para evitarlo casteamos el query builder a una versión
+    // laxa SOLO para este select y proyectamos a un shape explícito.
+    // TODO(deploy): borrar el cast tras aplicar batch backend 2026-06-10 + gen:types.
+    (
+      supabase.from('comite_propuestas') as unknown as {
+        select: (cols: string) => {
+          eq: (c: string, v: string) => {
+            order: (
+              c: string,
+              o: { ascending: boolean },
+            ) => Promise<{ data: PropuestaComiteRow[] | null }>;
+          };
+        };
+      }
+    )
+      .select(
+        `id, valor_ars, valor_usd, notas, nota_justificativa, firmado_en, created_at,
+         tasador:profiles!comite_propuestas_tasador_id_fkey(nombre, apellido, matricula)`,
+      )
       .eq('tasacion_id', id)
       .order('created_at', { ascending: true }),
     entidadId
@@ -113,6 +151,18 @@ export default async function TasacionDetallePage({ params }: PageProps) {
   ]);
 
   const propuestas = propuestasRaw ?? [];
+
+  // TSK-122/AC-016: modelo de trazabilidad del valor (4 componentes). Se arma
+  // con función pura para mantener la lógica testeable fuera del render.
+  const trazabilidadInput: TrazabilidadInput = {
+    valorFittServiniArs: tasacion.valor_fitt_servini_ars,
+    valorRobotomusArs: tasacion.valor_robotomus_ars,
+    valorFinalArs: tasacion.valor_ars,
+    valorFinalUsd: tasacion.valor_usd,
+    cierreAt: tasacion.cierre_at,
+    propuestas,
+  };
+  const trazabilidad = construirTrazabilidad(trazabilidadInput);
 
   // TSK-91/BR-026: el admin de la entidad puede asignar un tasador a una
   // solicitud pendiente sin asignar (complementa el self-claim DS-22). Solo
@@ -505,6 +555,8 @@ export default async function TasacionDetallePage({ params }: PageProps) {
           </p>
         )}
       </section>
+
+      <TrazabilidadValor model={trazabilidad} />
 
       <section className="bg-status-successSoft border border-status-success/30 rounded-xl p-xl">
         <div className="flex items-center gap-sm mb-md">
