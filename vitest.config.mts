@@ -9,6 +9,13 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 //   (libs, server actions, helpers de página) y excluye scaffolding/tipos.
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
+  resolve: {
+    alias: {
+      // `server-only` lanza si se importa fuera de un RSC; en tests lo aliaseamos
+      // a un stub no-op para poder ejercer módulos server (ej. lib/supabase/admin).
+      'server-only': new URL('./test/stubs/server-only.ts', import.meta.url).pathname,
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

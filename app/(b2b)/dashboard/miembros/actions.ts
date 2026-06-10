@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getMembresiaActiva } from '@/lib/entidad-activa';
 import { revalidatePath } from 'next/cache';
+import { traducirError } from '@/lib/errors';
 import type { Database } from '@/types/database';
 
 type RolMiembro = Database['public']['Enums']['rol_entidad_miembro'];
@@ -63,7 +64,7 @@ export async function agregarMiembro(
     _roles: roles,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: traducirError(error).mensaje };
 
   revalidatePath('/dashboard/miembros');
   return { ok: `Miembro ${email} agregado.` };
@@ -89,7 +90,7 @@ export async function actualizarRoles(
     _roles: roles,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: traducirError(error).mensaje };
 
   revalidatePath('/dashboard/miembros');
   return { ok: 'Roles actualizados.' };
@@ -111,7 +112,7 @@ export async function quitarMiembro(
     _user: userId,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: traducirError(error).mensaje };
 
   revalidatePath('/dashboard/miembros');
   return { ok: 'Miembro dado de baja.' };
