@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { traducirError } from '@/lib/errors';
 
 export type AceptarState = {
   error?: string;
@@ -54,7 +55,8 @@ export async function finalizarInvitacion(
     );
 
   if (miembroError) {
-    return { error: `No se pudo vincularte a la entidad: ${miembroError.message}` };
+    // No exponer el mensaje crudo de Postgres (nombres de constraint/columna).
+    return { error: `No se pudo vincularte a la entidad: ${traducirError(miembroError).mensaje}` };
   }
 
   // 2) Recién con la membresía garantizada, seteamos la contraseña.

@@ -14,6 +14,7 @@ import {
 import { startOfDayBusinessTz, endOfDayBusinessTz } from '@/lib/timezone';
 import TasacionesFilters, { type FiltersState } from './TasacionesFilters';
 import TasacionesRealtime from './TasacionesRealtime';
+import { buildSearchOr } from './buildSearchOr';
 
 const PAGE_SIZE = 25;
 
@@ -76,66 +77,6 @@ function parseTipo(raw: string | undefined): TipoInmueble | undefined {
 
 function parseFecha(raw: string | undefined): string | undefined {
   return raw && FECHA_RE.test(raw) ? raw : undefined;
-}
-
-// Límite de int4 en Postgres (columna `numero`). Términos por encima de esto
-// desbordarían el cast y harían fallar el filtro `numero.eq`.
-const INT4_MAX = 2147483647;
-
-// Construye un filtro OR para Supabase a partir del término de búsqueda.
-//
-// TSK-71 (mismo bug que TSK-63 en mobile): si el término es PURAMENTE
-// NUMÉRICO se matchea SOLO por número de tasación — nunca por domicilio —
-// para evitar matches "fantasma" (buscar "23" traía "Av. San Martín 1234" o
-// "25 de Mayo 2300" por el domicilio).
-//
-// TSK-78 — PARIDAD CON MOBILE: el criterio numérico es ahora SUBSTRING (antes
-// era igualdad exacta `numero.eq`). El mobile
-// (lib/estado-tasacion.ts:buscarTasaciones) hace substring sobre el número
-// crudo Y el padded; el web lo replica sobre la columna generada de texto
-// `numero_busqueda` (= lpad(numero::text, 4, '0'), el mismo formato #0023 que
-// muestra la UI) vía `numero_busqueda.ilike.%term%`. PostgREST `.or()` no
-// admite cast/función sobre `numero` (int4), por eso se introdujo esa columna
-// generada (migration 20260605170000).
-//
-// ⚠️ ORDEN DE DESPLIEGUE: la columna `numero_busqueda` solo existe tras aplicar
-// la migración 20260605170000 en la BD remota. Esa migración DEBE correrse
-// ANTES de deployar este código web en Vercel; si no, toda búsqueda numérica
-// rompe el listado (PostgREST 42703, columna inexistente). Ver banner de orden
-// obligatorio en el header de la migración.
-//
-// Así:
-//   - "23"   matchea #0023, #0230, #1234
-//   - "0023" matchea #0023
-// que es la paridad práctica con el substring del mobile.
-//
-// Si el término es texto, se matchea por domicilio (ilike) como antes.
-//
-// Devuelve `null` cuando el término es numérico pero inválido (desborda int4,
-// etc.): no hay cláusula posible, el caller fuerza listado vacío.
-function buildSearchOr(term: string): string | null {
-  const safe = term.replace(/[%,()]/g, ' ').trim();
-  if (!safe) return null;
-
-  // Puramente numérico: solo dígitos (con posibles ceros a la izquierda).
-  const esNumerica = /^\d+$/.test(safe);
-  if (esNumerica) {
-    // Validar overflow int4: aunque el match es substring sobre la columna
-    // texto generada, un término que ni siquiera puede ser un `numero` válido
-    // (desborda int4) nunca tendrá match real; lo descartamos para no devolver
-    // ruido y para conservar la semántica de "buscar un N° de tasación".
-    const sinCeros = safe.replace(/^0+/, '') || '0';
-    const asNum = Number(sinCeros);
-    if (!Number.isSafeInteger(asNum) || asNum <= 0 || asNum > INT4_MAX) {
-      return null;
-    }
-    // SUBSTRING sobre el padded (ver nota TSK-78). `safe` ya está saneado de
-    // `%,()` arriba, así que es seguro interpolarlo en el patrón ilike.
-    return `numero_busqueda.ilike.%${safe}%`;
-  }
-
-  // Término de texto: matchear domicilio.
-  return `domicilio.ilike.%${safe}%`;
 }
 
 export default async function TasacionesPage({ searchParams }: PageProps) {

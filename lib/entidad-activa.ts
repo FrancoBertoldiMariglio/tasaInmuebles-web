@@ -35,7 +35,18 @@ export const listarMembresias = cache(
       .eq('user_id', user.id)
       .order('created_at', { ascending: true });
 
-    if (error || !data) return [];
+    // TSK-149: un fallo de RLS o de red acá dejaba [] silencioso y la UI
+    // renderizaba "sin entidades" sin rastro. Logueamos antes de degradar el
+    // retorno (seguimos devolviendo [] para no romper el render). console.error
+    // porque el repo no tiene logger configurado y esto es un error real.
+    if (error || !data) {
+      console.error('[entidad-activa] listarMembresias falló', {
+        code: error?.code,
+        message: error?.message,
+        userId: user.id,
+      });
+      return [];
+    }
 
     return data
       .filter((m): m is typeof m & { entidad: NonNullable<typeof m.entidad> } =>
@@ -86,12 +97,26 @@ export async function getMembresiaActiva(): Promise<Membresia | null> {
  */
 export async function setEntidadActiva(entidadId: string): Promise<boolean> {
   const membresias = await listarMembresias();
-  if (!membresias.some((m) => m.entidad.id === entidadId)) return false;
+  if (!membresias.some((m) => m.entidad.id === entidadId)) {
+    // TSK-149: el rechazo de cambio de entidad activa también era silencioso.
+    // Puede ser un intento legítimo fallido (membresía revocada) o un fallo
+    // previo de listarMembresias que devolvió [] por RLS/red. Lo dejamos rastro
+    // sin cambiar el retorno (sigue devolviendo false).
+    const user = await getUserCached();
+    console.error('[entidad-activa] setEntidadActiva rechazado: user no es miembro', {
+      entidadId,
+      userId: user?.id ?? null,
+      membresiasCount: membresias.length,
+    });
+    return false;
+  }
 
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, entidadId, {
     maxAge: COOKIE_MAX_AGE,
     httpOnly: true,
+    // En producción (HTTPS forzado en K8s) la cookie nunca debe viajar por HTTP.
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
   });

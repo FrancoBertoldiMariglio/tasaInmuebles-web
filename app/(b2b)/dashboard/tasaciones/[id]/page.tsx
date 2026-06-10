@@ -1,8 +1,18 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/server';
 import { getEntidadActivaId, getMembresiaActiva } from '@/lib/entidad-activa';
 import { fetchFotosTasacion } from '@/lib/queries/fotos';
+import { formatMoney } from '@/lib/format';
 import AsignarTasadorForm, { type TasadorOption } from './AsignarTasadorForm';
+import TrazabilidadValor, {
+  construirTrazabilidad,
+  type TrazabilidadInput,
+} from './TrazabilidadValor';
+import {
+  LiberarAlPoolForm,
+  ReasignarTasadorForm,
+} from './AccionesAsignacionForm';
 import {
   estadoLabels,
   estadoStyles,
@@ -27,32 +37,6 @@ const cierreMetodoLabels: Record<string, string> = {
   override: 'Override manual',
   comite: 'Consenso del comité',
 };
-
-function formatArs(value: number | null): string {
-  if (value == null || value <= 0) return '$ 0';
-  return `$ ${value.toLocaleString('es-AR')}`;
-}
-
-function formatUsd(value: number | null): string {
-  if (value == null || value <= 0) return 'USD 0';
-  return `USD ${value.toLocaleString('es-AR')}`;
-}
-
-function formatArsMuestra(value: number | null): string {
-  const n = value ?? 0;
-  return `$${n.toLocaleString('es-AR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function formatUsdMuestra(value: number | null): string {
-  const n = value ?? 0;
-  return `USD ${n.toLocaleString('es-AR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 export default async function TasacionDetallePage({ params }: PageProps) {
   const { id } = await params;
@@ -93,43 +77,60 @@ export default async function TasacionDetallePage({ params }: PageProps) {
     );
   }
 
-  // Fotos (bucket privado → signed URLs) y propuestas del comité (DS-12).
-  // Se cargan en paralelo; un fallo de fotos no debe tumbar la página.
-  const [fotos, { data: propuestasRaw }] = await Promise.all([
-    fetchFotosTasacion(id).catch(() => []),
-    supabase
-      .from('comite_propuestas')
-      .select(`
-        id, valor_ars, valor_usd, notas, created_at,
-        tasador:profiles!comite_propuestas_tasador_id_fkey(nombre, apellido, matricula)
-      `)
-      .eq('tasacion_id', id)
-      .order('created_at', { ascending: true }),
-  ]);
-
-  const propuestas = propuestasRaw ?? [];
-
+  // TSK-146/WEB-02: Fotos, propuestas del comité (DS-12) y tasador asignado
+  // (TSK-85) se cargan TODO en paralelo. Las tres consultas solo dependen de
+  // `id`/`entidadId` (ya disponibles), no entre sí, así que no hay razón para
+  // serializar: antes la RPC `tasadores_de_entidad` colgaba un round-trip extra
+  // detrás del Promise.all. Un fallo de fotos no debe tumbar la página.
+  //
   // TSK-85: el tasador asignado no se puede leer con join directo a profiles
   // (la RLS `profile_select` solo deja ver el propio profile). Lo resolvemos con
   // la RPC SECURITY DEFINER `tasadores_de_entidad`, que valida membresía en la
   // entidad y devuelve el display por tasación. Si la tasación no aparece
   // (tasador_id NULL, DS-22) → sin asignar.
-  const tasador = entidadId
-    ? await supabase
-        .rpc('tasadores_de_entidad', { _entidad: entidadId })
-        .then(({ data }) => {
-          const row = (data ?? []).find((r) => r.tasacion_id === id);
-          return row
-            ? {
-                user_id: row.user_id,
-                nombre: row.nombre,
-                apellido: row.apellido,
-                email: row.email,
-                matricula: row.matricula,
-              }
-            : null;
-        })
-    : null;
+  const [fotos, { data: propuestasRaw }, tasador] = await Promise.all([
+    fetchFotosTasacion(id).catch(() => []),
+    // nota_justificativa + firmado_en (TSK-110/BR-038) alimentan la trazabilidad
+    // (TSK-122). Select tipado contra `comite_propuestas`.
+    supabase
+      .from('comite_propuestas')
+      .select(
+        `id, valor_ars, valor_usd, notas, nota_justificativa, firmado_en, created_at,
+         tasador:profiles!comite_propuestas_tasador_id_fkey(nombre, apellido, matricula)`,
+      )
+      .eq('tasacion_id', id)
+      .order('created_at', { ascending: true }),
+    entidadId
+      ? supabase
+          .rpc('tasadores_de_entidad', { _entidad: entidadId })
+          .then(({ data }) => {
+            const row = (data ?? []).find((r) => r.tasacion_id === id);
+            return row
+              ? {
+                  user_id: row.user_id,
+                  nombre: row.nombre,
+                  apellido: row.apellido,
+                  email: row.email,
+                  matricula: row.matricula,
+                }
+              : null;
+          })
+      : Promise.resolve(null),
+  ]);
+
+  const propuestas = propuestasRaw ?? [];
+
+  // TSK-122/AC-016: modelo de trazabilidad del valor (4 componentes). Se arma
+  // con función pura para mantener la lógica testeable fuera del render.
+  const trazabilidadInput: TrazabilidadInput = {
+    valorFittServiniArs: tasacion.valor_fitt_servini_ars,
+    valorRobotomusArs: tasacion.valor_robotomus_ars,
+    valorFinalArs: tasacion.valor_ars,
+    valorFinalUsd: tasacion.valor_usd,
+    cierreAt: tasacion.cierre_at,
+    propuestas,
+  };
+  const trazabilidad = construirTrazabilidad(trazabilidadInput);
 
   // TSK-91/BR-026: el admin de la entidad puede asignar un tasador a una
   // solicitud pendiente sin asignar (complementa el self-claim DS-22). Solo
@@ -137,19 +138,45 @@ export default async function TasacionDetallePage({ params }: PageProps) {
   // tasadores del dropdown salen de listar_miembros_entidad (admin-gated).
   const membresia = await getMembresiaActiva();
   const esAdminEntidad = membresia?.roles.includes('admin') ?? false;
-  const puedeAsignar =
+
+  // Una solicitud pendiente sin asignar admite dos caminos del admin: asignar a
+  // mano (TSK-91) o liberar al pool (TSK-119, solo si todavía no está tomable —
+  // la modalidad 'pool' la marca tomable al nacer, ahí no tiene sentido el botón).
+  const pendienteSinAsignar =
     esAdminEntidad &&
     entidadId != null &&
     tasacion.estado === 'pendiente' &&
     tasacion.tasador_id == null;
+  const puedeAsignar = pendienteSinAsignar;
+  // `tomable` (TSK-107) todavía no está en `types/database.ts` regenerado en este
+  // worktree; lo leemos con un cast puntual hasta el próximo gen:types.
+  const tasacionTomable = (tasacion as { tomable?: boolean }).tomable === true;
+  const puedeLiberar = pendienteSinAsignar && !tasacionTomable;
 
-  const tasadoresEntidad: TasadorOption[] = puedeAsignar
+  // TSK-120/RF-027: la reasignación solo aplica a tasaciones EN PROCESO con un
+  // tasador ya asignado (la RPC rechaza otros estados). Es un camino distinto al
+  // de asignar/liberar (esos son sobre pendientes).
+  const puedeReasignar =
+    esAdminEntidad &&
+    entidadId != null &&
+    tasacion.estado === 'en_proceso' &&
+    tasacion.tasador_id != null;
+
+  // El dropdown de tasadores se necesita tanto para asignar como para reasignar.
+  // listar_miembros_entidad NO expone la especialidad (BR-039), así que mostramos
+  // todos los tasadores de la entidad y dejamos que la RPC rechace por
+  // especialidad (errcode 23514, traducido por la action) — TSK-119.
+  const necesitaTasadores = puedeAsignar || puedeReasignar;
+  const tasadoresEntidad: TasadorOption[] = necesitaTasadores
     ? await (async () => {
         const { data } = await supabase.rpc('listar_miembros_entidad', {
           _entidad: entidadId as string,
         });
         return (data ?? [])
           .filter((m) => (m.roles as string[]).includes('tasador'))
+          // En reasignación excluimos al tasador actual del dropdown (la RPC
+          // igual rechaza "mismo tasador", pero no tiene sentido ofrecerlo).
+          .filter((m) => m.user_id !== tasacion.tasador_id)
           .map((m) => ({
             userId: m.user_id,
             nombre:
@@ -207,13 +234,22 @@ export default async function TasacionDetallePage({ params }: PageProps) {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-md">
             {fotos.map((foto) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              // TSK-148/WEB-04: next/image con `fill` sobre un contenedor
+              // `relative aspect-square` reproduce el mismo cuadro que el <img>
+              // anterior (w-full + aspect-square + object-cover). `sizes` cubre
+              // el grid responsive (2/3/4 columnas) para servir el ancho justo.
+              <div
                 key={foto.id}
-                src={foto.url}
-                alt={foto.descripcion ?? 'Foto del inmueble'}
-                className="w-full aspect-square object-cover rounded-md border border-line-soft bg-surface-pageAlt"
-              />
+                className="relative w-full aspect-square rounded-md border border-line-soft bg-surface-pageAlt overflow-hidden"
+              >
+                <Image
+                  src={foto.url}
+                  alt={foto.descripcion ?? 'Foto del inmueble'}
+                  fill
+                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  className="object-cover"
+                />
+              </div>
             ))}
           </div>
         </section>
@@ -269,6 +305,10 @@ export default async function TasacionDetallePage({ params }: PageProps) {
               {puedeAsignar && (
                 <AsignarTasadorForm tasacionId={id} tasadores={tasadoresEntidad} />
               )}
+              {puedeLiberar && <LiberarAlPoolForm tasacionId={id} />}
+              {puedeReasignar && (
+                <ReasignarTasadorForm tasacionId={id} tasadores={tasadoresEntidad} />
+              )}
             </div>
             <Field
               label="Solicitante"
@@ -286,7 +326,7 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                 Valor AR$
               </div>
               <div className="text-ds-xl font-bold text-ink-primary tabular-nums mt-xs">
-                {formatArs(tasacion.valor_ars)}
+                {formatMoney(tasacion.valor_ars, 'ARS')}
               </div>
             </div>
             <div>
@@ -294,7 +334,7 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                 Valor USD
               </div>
               <div className="text-ds-xl font-bold text-ink-primary tabular-nums mt-xs">
-                {formatUsd(tasacion.valor_usd)}
+                {formatMoney(tasacion.valor_usd, 'USD')}
               </div>
             </div>
           </div>
@@ -307,7 +347,7 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                   <div className="flex items-baseline justify-between">
                     <dt className="text-ds-sm text-ink-muted2">Valor técnico (Fitt-Servini)</dt>
                     <dd className="text-ds-sm font-medium text-ink-primary tabular-nums">
-                      {formatArs(tasacion.valor_fitt_servini_ars)}
+                      {formatMoney(tasacion.valor_fitt_servini_ars, 'ARS')}
                     </dd>
                   </div>
                 )}
@@ -315,7 +355,7 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                   <div className="flex items-baseline justify-between">
                     <dt className="text-ds-sm text-ink-muted2">Valor Robotomus</dt>
                     <dd className="text-ds-sm font-medium text-ink-primary tabular-nums">
-                      {formatArs(tasacion.valor_robotomus_ars)}
+                      {formatMoney(tasacion.valor_robotomus_ars, 'ARS')}
                     </dd>
                   </div>
                 )}
@@ -462,10 +502,10 @@ export default async function TasacionDetallePage({ params }: PageProps) {
                   </div>
                   <div className="flex gap-xl mt-sm">
                     <span className="text-ds-sm text-ink-primary tabular-nums">
-                      {formatArs(p.valor_ars)}
+                      {formatMoney(p.valor_ars, 'ARS')}
                     </span>
                     <span className="text-ds-sm text-ink-primary tabular-nums">
-                      {formatUsd(p.valor_usd)}
+                      {formatMoney(p.valor_usd, 'USD')}
                     </span>
                   </div>
                   {p.notas && (
@@ -484,6 +524,8 @@ export default async function TasacionDetallePage({ params }: PageProps) {
         )}
       </section>
 
+      <TrazabilidadValor model={trazabilidad} />
+
       <section className="bg-status-successSoft border border-status-success/30 rounded-xl p-xl">
         <div className="flex items-center gap-sm mb-md">
           <span className="text-ds-2xl" aria-hidden>🤖</span>
@@ -498,7 +540,7 @@ export default async function TasacionDetallePage({ params }: PageProps) {
               AR$
             </div>
             <div className="text-ds-lg font-bold text-ink-primary tabular-nums mt-xs">
-              {formatArsMuestra(tasacion.valor_robotomus_ars)}
+              {formatMoney(tasacion.valor_robotomus_ars, 'ARS')}
             </div>
           </div>
           <div className="border border-dashed border-status-success/50 rounded-md p-md bg-surface-card/50">
@@ -506,7 +548,7 @@ export default async function TasacionDetallePage({ params }: PageProps) {
               USD
             </div>
             <div className="text-ds-lg font-bold text-ink-primary tabular-nums mt-xs">
-              {formatUsdMuestra(null)}
+              {formatMoney(null, 'USD')}
             </div>
           </div>
         </div>

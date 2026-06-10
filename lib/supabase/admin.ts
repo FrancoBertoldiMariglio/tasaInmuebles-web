@@ -1,6 +1,7 @@
 import 'server-only';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { supabaseUrl, supabaseServiceRoleKey } from './env';
 
 /**
  * Cliente Supabase con SERVICE-ROLE. Bypassa RLS y habilita la Admin API
@@ -11,16 +12,9 @@ import type { Database } from '@/types/database';
  * sin prefijo NEXT_PUBLIC_).
  */
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceRoleKey) {
-    throw new Error(
-      'Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY para el cliente admin.',
-    );
-  }
-
-  return createSupabaseClient<Database>(url, serviceRoleKey, {
+  // Validación centralizada en ./env: tira Error descriptivo (apuntando a
+  // Secret mal montado en K8s) si la URL o la service-role key faltan.
+  return createSupabaseClient<Database>(supabaseUrl(), supabaseServiceRoleKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }

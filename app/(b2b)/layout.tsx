@@ -12,6 +12,7 @@ const navItems = [
   { href: '/dashboard/nueva', label: 'Solicitar', icon: '＋', solicitarRoles: true },
   { href: '/dashboard/metricas', label: 'Métricas', icon: '▦' },
   { href: '/dashboard/miembros', label: 'Miembros', icon: '◍', adminOnly: true },
+  { href: '/dashboard/tasadores', label: 'Tasadores', icon: '◎', adminOnly: true },
   { href: '/dashboard/invitar', label: 'Invitar', icon: '✉', adminOnly: true },
 ] as const;
 
