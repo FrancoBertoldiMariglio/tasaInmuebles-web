@@ -1,0 +1,72 @@
+# tasainmuebles-web — pipeline CI (gates bloqueantes) + deploy diferido.
+# Política: docs/superpowers/specs/2026-06-10-pipelines-3repos-design.md
+stages: [guard, validate, test, build, deploy]
+
+default:
+  image: node:20
+
+# Corre en MRs y en push a las ramas protegidas. Evita pipelines duplicados.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "main"'
+
+guard:source-branch:
+  stage: guard
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  script:
+    - |
+      SRC="$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+      DST="$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+      case "$DST" in
+        main)    [ "$SRC" = "staging" ] || { echo "main solo acepta MR desde staging (fuente: $SRC)"; exit 1; } ;;
+        staging) [ "$SRC" = "develop" ] || { echo "staging solo acepta MR desde develop (fuente: $SRC)"; exit 1; } ;;
+        develop) case "$SRC" in feature/*) ;; *) echo "develop solo acepta MR desde feature/* (fuente: $SRC)"; exit 1;; esac ;;
+        *) echo "Target $DST sin regla de guard; OK." ;;
+      esac
+      echo "guard OK: $SRC -> $DST"
+
+.node-deps: &node-deps
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [node_modules/]
+  before_script:
+    - npm ci
+
+lint:
+  stage: validate
+  <<: *node-deps
+  script:
+    - npm run lint
+    - npm run typecheck
+
+test:
+  stage: test
+  <<: *node-deps
+  script:
+    - npm run test:coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d.]+)/'
+
+build:
+  stage: build
+  <<: *node-deps
+  script:
+    - npm run build
+  artifacts:
+    paths: [.next/standalone/, .next/static/]
+    expire_in: 1 day
+
+# --- DEPLOY DIFERIDO: descomentar cuando EKS/registry/secrets estén listos ---
+# deploy:eks:
+#   stage: deploy
+#   image: docker:27
+#   services: [docker:27-dind]
+#   rules:
+#     - if: '$CI_COMMIT_BRANCH == "main"'
+#       when: manual
+#   script:
+#     - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+#     - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+#     # - kubectl set image deployment/web web="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
